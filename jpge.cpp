@@ -1,7 +1,6 @@
 // jpge.cpp - C++ class for JPEG compression.
 // Public domain, Rich Geldreich <richgel99@gmail.com>
-// v1.00 - Last updated Dec. 18, 2010
-// Note: The current DCT function was derived from an old version of libjpeg.
+// v1.01 - Last updated Dec. 18, 2010
 
 #include "jpge.h"
 
@@ -32,9 +31,9 @@ static int16 s_std_croma_quant[64] = { 17,  18,  18,  24,  21,  24,  47,  26, 26
 
 enum { DC_LUM_CODES = 12, AC_LUM_CODES = 256, DC_CHROMA_CODES = 12, AC_CHROMA_CODES = 256 };
 
-static uint8 s_dc_lum_bits[17] = { 0, 0, 1, 5, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0 };
-static uint8 s_dc_lum_val[DC_LUM_CODES] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
-static uint8 s_ac_lum_bits[17] = { 0, 0, 2, 1, 3, 3, 2, 4, 3, 5, 5, 4, 4, 0, 0, 1, 0x7d };
+static uint8 s_dc_lum_bits[17] = { 0,0,1,5,1,1,1,1,1,1,0,0,0,0,0,0,0 };
+static uint8 s_dc_lum_val[DC_LUM_CODES] = { 0,1,2,3,4,5,6,7,8,9,10,11 };
+static uint8 s_ac_lum_bits[17] = { 0,0,2,1,3,3,2,4,3,5,5,4,4,0,0,1,0x7d };
 
 static uint8 s_ac_lum_val[AC_LUM_CODES]  = {
     0x01, 0x02, 0x03, 0x00, 0x04, 0x11, 0x05, 0x12, 0x21, 0x31, 0x41, 0x06, 0x13, 0x51, 0x61, 0x07,
@@ -47,12 +46,12 @@ static uint8 s_ac_lum_val[AC_LUM_CODES]  = {
     0xa8, 0xa9, 0xaa, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6, 0xb7, 0xb8, 0xb9, 0xba, 0xc2, 0xc3, 0xc4, 0xc5,
     0xc6, 0xc7, 0xc8, 0xc9, 0xca, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7, 0xd8, 0xd9, 0xda, 0xe1, 0xe2,
     0xe3, 0xe4, 0xe5, 0xe6, 0xe7, 0xe8, 0xe9, 0xea, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8,
-    0xf9, 0xfa
+    0xf9,0xfa
 };
 
-static uint8 s_dc_chroma_bits[17] = { 0, 0, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0 };
-static uint8 s_dc_chroma_val[DC_CHROMA_CODES]  = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
-static uint8 s_ac_chroma_bits[17] = { 0, 0, 2, 1, 2, 4, 4, 3, 4, 7, 5, 4, 4, 0, 1, 2, 0x77 };
+static uint8 s_dc_chroma_bits[17] = { 0,0,3,1,1,1,1,1,1,1,1,1,0,0,0,0,0 };
+static uint8 s_dc_chroma_val[DC_CHROMA_CODES]  = { 0,1,2,3,4,5,6,7,8,9,10,11 };
+static uint8 s_ac_chroma_bits[17] = { 0,0,2,1,2,4,4,3,4,7,5,4,4,0,1,2,0x77 };
 
 static uint8 s_ac_chroma_val[AC_CHROMA_CODES] = {
     0x00, 0x01, 0x02, 0x03, 0x11, 0x04, 0x05, 0x21, 0x31, 0x06, 0x12, 0x41, 0x51, 0x07, 0x61, 0x71,
@@ -65,7 +64,7 @@ static uint8 s_ac_chroma_val[AC_CHROMA_CODES] = {
     0xa6, 0xa7, 0xa8, 0xa9, 0xaa, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6, 0xb7, 0xb8, 0xb9, 0xba, 0xc2, 0xc3,
     0xc4, 0xc5, 0xc6, 0xc7, 0xc8, 0xc9, 0xca, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7, 0xd8, 0xd9, 0xda,
     0xe2, 0xe3, 0xe4, 0xe5, 0xe6, 0xe7, 0xe8, 0xe9, 0xea, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8,
-    0xf9, 0xfa
+    0xf9,0xfa
 };
 
 // Low-level helper functions.
@@ -110,7 +109,7 @@ static void RGB_to_Y(uint8 *Pdst, const uint8 *src, int num_pixels)
 {
     for ( ; num_pixels; Pdst++, src += 3, num_pixels--)
         Pdst[0] = static_cast<uint8>((src[0] * YR + src[1] * YG + src[2] * YB + 32768) >> 16);
-}
+    }
 
 static void Y_to_YCC(uint8 *Pdst, const uint8 *src, int num_pixels)
 {
@@ -234,7 +233,7 @@ void jpeg_encoder::emit_marker(int marker)
 {
     m_all_stream_writes_succeeded = m_all_stream_writes_succeeded && m_pStream->put_obj(uint8(0xFF));
     m_all_stream_writes_succeeded = m_all_stream_writes_succeeded && m_pStream->put_obj(uint8(marker));
-}
+    }
 
 void jpeg_encoder::emit_byte(uint8 i)
 {
@@ -775,13 +774,13 @@ bool jpeg_encoder::terminate_pass_two()
 bool jpeg_encoder::process_end_of_image()
 {
     if (m_mcu_y_ofs) {
-        for (int i = m_mcu_y_ofs; i < m_mcu_y; i++)
-            memcpy(m_mcu_lines[i], m_mcu_lines[m_mcu_y_ofs - 1], m_image_bpl_mcu);
+            for (int i = m_mcu_y_ofs; i < m_mcu_y; i++)
+                memcpy(m_mcu_lines[i], m_mcu_lines[m_mcu_y_ofs - 1], m_image_bpl_mcu);
 
         process_mcu_row();
     }
 
-    return terminate_pass_two();
+        return terminate_pass_two();
 }
 
 void jpeg_encoder::load_mcu(const void *src)
@@ -827,33 +826,21 @@ void jpeg_encoder::load_mcu(const void *src)
 void jpeg_encoder::clear()
 {
     m_num_components = 0;
-    m_image_x = 0;
-    m_image_y = 0;
-    m_image_bpp = 0;
-    m_image_bpl = 0;
-    m_image_x_mcu = 0;
-    m_image_y_mcu = 0;
-    m_image_bpl_xlt = 0;
-    m_image_bpl_mcu = 0;
+    m_image_x = 0; m_image_y = 0;
+    m_image_bpp = 0; m_image_bpl = 0;
+    m_image_x_mcu = 0; m_image_y_mcu = 0;
+    m_image_bpl_xlt = 0; m_image_bpl_mcu = 0;
     m_mcus_per_row = 0;
-    m_mcu_x = 0;
-    m_mcu_y = 0;
+    m_mcu_x = 0; m_mcu_y = 0;
     m_mcu_lines = NULL;
     m_mcu_y_ofs = 0;
-    m_sample_array = NULL;
-    m_coefficient_array = NULL;
-    m_out_buf = NULL;
-    m_out_buf_ofs = NULL;
-    m_out_buf_left = 0;
-    m_bit_buffer = 0;
+    m_sample_array = NULL; m_coefficient_array = NULL;
+    m_out_buf = NULL; m_out_buf_ofs = NULL;
+    m_out_buf_left = 0; m_bit_buffer = 0;
     m_bits_in = 0;
-    clear_obj(m_comp_h_samp);
-    clear_obj(m_comp_v_samp);
+    clear_obj(m_comp_h_samp); clear_obj(m_comp_v_samp);
     clear_obj(m_quantization_tables);
-    clear_obj(m_huff_codes);
-    clear_obj(m_huff_code_sizes);
-    clear_obj(m_huff_bits);
-    clear_obj(m_huff_val);
+    clear_obj(m_huff_codes); clear_obj(m_huff_code_sizes); clear_obj(m_huff_bits); clear_obj(m_huff_val);
     clear_obj(m_last_dc_val);
     m_all_stream_writes_succeeded = true;
 }
@@ -901,6 +888,7 @@ void jpeg_encoder::deinit()
         jpge_free(m_huff_bits[i]);
         jpge_free(m_huff_val[i]);
     }
+
     jpge_free(m_out_buf);
     clear();
 }
@@ -974,13 +962,13 @@ bool compress_image_to_jpeg_file(const char *pFilename, int width, int height, i
     if (!dst_image.init(&dst_stream, width, height, num_channels, comp_params))
         return false;
 
-    for (int i = 0; i < height; i++) {
-        const uint8 *pBuf = pImage_data + i * width * num_channels;
-        if (!dst_image.process_scanline(pBuf))
+        for (int i = 0; i < height; i++) {
+            const uint8 *pBuf = pImage_data + i * width * num_channels;
+            if (!dst_image.process_scanline(pBuf))
+                return false;
+        }
+        if (!dst_image.process_scanline(NULL))
             return false;
-    }
-    if (!dst_image.process_scanline(NULL))
-        return false;
 
     dst_image.deinit();
 
@@ -1026,13 +1014,13 @@ bool compress_image_to_jpeg_file_in_memory(void *pBuf, int &buf_size, int width,
     if (!dst_image.init(&dst_stream, width, height, num_channels, comp_params))
         return false;
 
-    for (int i = 0; i < height; i++) {
+        for (int i = 0; i < height; i++) {
         const uint8 *pBuf = pImage_data + i * width * num_channels;
         if (!dst_image.process_scanline(pBuf))
+                return false;
+        }
+        if (!dst_image.process_scanline(NULL))
             return false;
-    }
-    if (!dst_image.process_scanline(NULL))
-        return false;
 
     dst_image.deinit();
 
