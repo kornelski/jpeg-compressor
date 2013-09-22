@@ -6,7 +6,6 @@
 #include "jpge.h"
 #include "jpgd.h"
 #include "stb_image.c"
-#include "timer.h"
 #include <ctype.h>
 
 #if defined(_MSC_VER)
@@ -252,12 +251,8 @@ static int test_jpgd(const char *pSrc_filename, const char *pDst_filename)
     const int req_comps = 3; // request RGB image
     int width = 0, height = 0, actual_comps = 0;
 
-    timer tm;
-    tm.start();
-
     uint8 *pImage_data = jpgd::decompress_jpeg_image_from_file(pSrc_filename, &width, &height, &actual_comps, req_comps);
 
-    tm.stop();
 
     if (!pImage_data) {
         log_printf("Failed loading JPEG file \"%s\"!\n", pSrc_filename);
@@ -265,8 +260,6 @@ static int test_jpgd(const char *pSrc_filename, const char *pDst_filename)
     }
 
     log_printf("Source JPEG file: \"%s\", image resolution: %ix%i, actual comps: %i\n", pSrc_filename, width, height, actual_comps);
-
-    log_printf("Decompression time: %3.3fms\n", tm.get_elapsed_ms());
 
     if (!stbi_write_tga(pDst_filename, width, height, req_comps, pImage_data)) {
         log_printf("Failed writing image to file \"%s\"!\n", pDst_filename);
@@ -400,20 +393,16 @@ int main(int arg_c, char *ppArgs[])
 
     log_printf("Writing JPEG image to file: %s\n", pDst_filename);
 
-    timer tm;
-
     // Now create the JPEG file.
     if (test_memory_compression) {
         int buf_size = width * height * 3; // allocate a buffer that's hopefully big enough (this is way overkill for jpeg)
         if (buf_size < 1024) buf_size = 1024;
         void *pBuf = malloc(buf_size);
 
-        tm.start();
         if (!jpge::compress_image_to_jpeg_file_in_memory(pBuf, buf_size, width, height, req_comps, pImage_data, params)) {
             log_printf("Failed creating JPEG data!\n");
             return EXIT_FAILURE;
         }
-        tm.stop();
 
         FILE *pFile = fopen(pDst_filename, "wb");
         if (!pFile) {
@@ -431,16 +420,14 @@ int main(int arg_c, char *ppArgs[])
             return EXIT_FAILURE;
         }
     } else {
-        tm.start();
 
         if (!jpge::compress_image_to_jpeg_file(pDst_filename, width, height, req_comps, pImage_data, params)) {
             log_printf("Failed writing to output file!\n");
             return EXIT_FAILURE;
         }
-        tm.stop();
     }
 
-    double total_comp_time = tm.get_elapsed_ms();
+    double total_comp_time = 0;
 
     const long comp_file_size = get_file_size(pDst_filename);
     const uint total_pixels = width * height;
@@ -449,14 +436,13 @@ int main(int arg_c, char *ppArgs[])
     // Now try loading the JPEG file using jpgd or stbi_image's JPEG decompressor.
     int uncomp_width = 0, uncomp_height = 0, uncomp_actual_comps = 0, uncomp_req_comps = 3;
 
-    tm.start();
     uint8 *pUncomp_image_data;
     if (use_jpgd)
         pUncomp_image_data = jpgd::decompress_jpeg_image_from_file(pDst_filename, &uncomp_width, &uncomp_height, &uncomp_actual_comps, uncomp_req_comps);
     else
         pUncomp_image_data = stbi_load(pDst_filename, &uncomp_width, &uncomp_height, &uncomp_actual_comps, uncomp_req_comps);
 
-    double total_uncomp_time = tm.get_elapsed_ms();
+    double total_uncomp_time = 0;
 
     if (!pUncomp_image_data) {
         log_printf("Failed loading compressed image file \"%s\"!\n", pDst_filename);
