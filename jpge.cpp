@@ -60,38 +60,23 @@ template <class T> inline void clear_obj(T &obj) { memset(&obj, 0, sizeof(obj));
 const int YR = 19595, YG = 38470, YB = 7471, CB_R = -11059, CB_G = -21709, CB_B = 32768, CR_R = 32768, CR_G = -27439, CR_B = -5329;
 static inline uint8 clamp(int i) { if (static_cast<uint>(i) > 255U) { if (i < 0) i = 0; else if (i > 255) i = 255; } return static_cast<uint8>(i); }
 
-static void RGB_to_YCC(uint8* pDst, const uint8 *pSrc, int num_pixels)
+template<class T> static void RGB_to_YCC(ycbcr* dst, const T *src, int num_pixels)
 {
-  for ( ; num_pixels; pDst += 3, pSrc += 3, num_pixels--)
-  {
-    const int r = pSrc[0], g = pSrc[1], b = pSrc[2];
-    pDst[0] = static_cast<uint8>((r * YR + g * YG + b * YB + 32768) >> 16);
-    pDst[1] = clamp(128 + ((r * CB_R + g * CB_G + b * CB_B + 32768) >> 16));
-    pDst[2] = clamp(128 + ((r * CR_R + g * CR_G + b * CR_B + 32768) >> 16));
-  }
+	for (int i = 0; i < num_pixels; i++) {
+		const int r = src[i].r, g = src[i].g, b = src[i].b;
+		dst[i] = (ycbcr){
+			static_cast<uint8>((r * YR + g * YG + b * YB + 32768) >> 16),
+			clamp(128 + ((r * CB_R + g * CB_G + b * CB_B + 32768) >> 16)),
+			clamp(128 + ((r * CR_R + g * CR_G + b * CR_B + 32768) >> 16)),
+		};
+	}
 }
 
-static void RGB_to_Y(uint8* pDst, const uint8 *pSrc, int num_pixels)
+template<class T> static void RGB_to_Y(uint8* pDst, const T *pSrc, int num_pixels)
 {
-  for ( ; num_pixels; pDst++, pSrc += 3, num_pixels--)
-    pDst[0] = static_cast<uint8>((pSrc[0] * YR + pSrc[1] * YG + pSrc[2] * YB + 32768) >> 16);
-}
-
-static void RGBA_to_YCC(uint8* pDst, const uint8 *pSrc, int num_pixels)
-{
-  for ( ; num_pixels; pDst += 3, pSrc += 4, num_pixels--)
-  {
-    const int r = pSrc[0], g = pSrc[1], b = pSrc[2];
-    pDst[0] = static_cast<uint8>((r * YR + g * YG + b * YB + 32768) >> 16);
-    pDst[1] = clamp(128 + ((r * CB_R + g * CB_G + b * CB_B + 32768) >> 16));
-    pDst[2] = clamp(128 + ((r * CR_R + g * CR_G + b * CR_B + 32768) >> 16));
-  }
-}
-
-static void RGBA_to_Y(uint8* pDst, const uint8 *pSrc, int num_pixels)
-{
-  for ( ; num_pixels; pDst++, pSrc += 4, num_pixels--)
-    pDst[0] = static_cast<uint8>((pSrc[0] * YR + pSrc[1] * YG + pSrc[2] * YB + 32768) >> 16);
+	for (int i=0; i < num_pixels; i++) {
+		pDst[i] = static_cast<uint8>((pSrc[i].r * YR + pSrc[i].g * YG + pSrc[i].b * YB + 32768) >> 16);
+	}
 }
 
 static void Y_to_YCC(uint8* pDst, const uint8* pSrc, int num_pixels)
@@ -810,18 +795,18 @@ void jpeg_encoder::load_mcu(const void *pSrc)
   if (m_num_components == 1)
   {
     if (m_image_bpp == 4)
-      RGBA_to_Y(pDst, Psrc, m_image_x);
+      RGB_to_Y(pDst, reinterpret_cast<const rgba*>(Psrc), m_image_x);
     else if (m_image_bpp == 3)
-      RGB_to_Y(pDst, Psrc, m_image_x);
+      RGB_to_Y(pDst, reinterpret_cast<const rgb*>(Psrc), m_image_x);
     else
       memcpy(pDst, Psrc, m_image_x);
   }
   else
   {
     if (m_image_bpp == 4)
-      RGBA_to_YCC(pDst, Psrc, m_image_x);
+      RGB_to_YCC(reinterpret_cast<ycbcr*>(pDst), reinterpret_cast<const rgba*>(Psrc), m_image_x);
     else if (m_image_bpp == 3)
-      RGB_to_YCC(pDst, Psrc, m_image_x);
+      RGB_to_YCC(reinterpret_cast<ycbcr*>(pDst), reinterpret_cast<const rgb*>(Psrc), m_image_x);
     else
       Y_to_YCC(pDst, Psrc, m_image_x);
   }

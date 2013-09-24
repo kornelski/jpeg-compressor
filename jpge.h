@@ -13,6 +13,18 @@ namespace jpge
   typedef unsigned int   uint32;
   typedef unsigned int   uint;
 
+  struct rgb {
+    uint8 r,g,b;
+  };
+
+  struct rgba {
+    uint8 r,g,b,a;
+  };
+
+  struct ycbcr {
+    uint8 y,cb,cr;
+  };
+
   // JPEG chroma subsampling factors. Y_ONLY (grayscale images) and H2V2 (color images) are the most common.
   enum subsampling_t { Y_ONLY = 0, H1V1 = 1, H2V1 = 2, H2V2 = 3 };
 
