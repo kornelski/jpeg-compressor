@@ -74,6 +74,8 @@ public:
     }
 };
 
+bool compress_image_to_stream(output_stream &dst_stream, int width, int height, int num_channels, const uint8 *pImage_data, const params &comp_params);
+
 class huffman_table {
 public:
     uint m_codes[256];
@@ -86,8 +88,24 @@ public:
     void compute();
 };
 
+class component {
+public:
+    uint8 m_h_samp, m_v_samp;
+    int m_last_dc_val;
+};
+
 struct huffman_dcac {
-    huffman_table ac,dc;
+    int32 m_quantization_table[64];
+    huffman_table dc,ac;
+};
+
+class image {
+public:
+    int m_x, m_y, m_bpp, m_bpl;
+    int m_x_mcu, m_y_mcu;
+    int m_bpl_xlt, m_bpl_mcu;
+    int m_mcus_per_row;
+    int m_mcu_w, m_mcu_h;
 };
 
 // Lower level jpeg_encoder class - useful if more control is needed than the above helper functions.
@@ -120,9 +138,11 @@ public:
 
     // Call this method with each source scanline.
     // width * src_channels bytes per scanline is expected (RGB or Y format).
-    // You must call with NULL after all scanlines are processed to finish compression.
     // Returns false on out of memory or if a stream write fails.
-    bool process_scanline(const void *pScanline);
+    bool process_scanline(const uint8 *pScanline);
+
+    // You must call after all scanlines are processed to finish compression.
+    bool process_end_of_image();
 
 private:
     jpeg_encoder(const jpeg_encoder &);
@@ -133,18 +153,10 @@ private:
     output_stream *m_pStream;
     params m_params;
     uint8 m_num_components;
-    uint8 m_comp_h_samp[3], m_comp_v_samp[3];
-    int m_image_x, m_image_y, m_image_bpp, m_image_bpl;
-    int m_image_x_mcu, m_image_y_mcu;
-    int m_image_bpl_xlt, m_image_bpl_mcu;
-    int m_mcus_per_row;
-    int m_mcu_x, m_mcu_y;
+    component m_comp[3];
     uint8 *m_mcu_lines[16];
     uint8 m_mcu_y_ofs;
-    sample_array_t m_sample_array[64];
-    int16 m_coefficient_array[64];
-    int32 m_quantization_tables[2][64];
-    int m_last_dc_val[3];
+
     struct huffman_dcac m_huff[2];
     enum { JPGE_OUT_BUF_SIZE = 2048 };
     uint8 m_out_buf[JPGE_OUT_BUF_SIZE];
@@ -154,6 +166,7 @@ private:
     uint m_bits_in;
     uint8 m_pass_num;
     bool m_all_stream_writes_succeeded;
+    image m_image;
 
     void emit_byte(uint8 i);
     void emit_word(uint i);
@@ -170,21 +183,21 @@ private:
     void first_pass_init();
     bool second_pass_init();
     bool jpg_open(int p_x_res, int p_y_res, int src_channels);
-    void load_block_8_8_grey(int x);
-    void load_block_8_8(int x, int y, int c);
-    void load_block_16_8(int x, int c);
-    void load_block_16_8_8(int x, int c);
-    void load_quantized_coefficients(int component_num);
+    void load_block_8_8_grey(sample_array_t *, int x);
+    void load_block_8_8(sample_array_t *, int x, int y, int c);
+    void load_block_16_8(sample_array_t *, int x, int c);
+    void load_block_16_8_8(sample_array_t *, int x, int c);
+    void load_quantized_coefficients(sample_array_t *pSrc, int16 *pDst, int32 *q);
     void flush_output_buffer();
     void put_bits(uint bits, uint len);
-    void code_coefficients_pass_one(huffman_dcac *huff, int component_num);
-    void code_coefficients_pass_two(huffman_dcac *huff, int component_num);
-    void code_block(huffman_dcac *huff, int component_num);
+    void code_coefficients_pass_one(int16 *pSrc, huffman_dcac *huff, component *);
+    void code_coefficients_pass_two(int16 *pSrc, huffman_dcac *huff, component *);
+    void code_block(sample_array_t *, huffman_dcac *huff, int component_num);
     void process_mcu_row();
     bool terminate_pass_one();
     bool terminate_pass_two();
-    bool process_end_of_image();
-    void load_mcu(const void *src);
+    void load_mcu_Y(const uint8 *src, uint8 *);
+    void load_mcu_YCC(const uint8 *pSrc, ycbcr *pDst);
     void clear();
     void init();
 };
