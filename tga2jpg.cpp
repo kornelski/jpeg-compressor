@@ -164,14 +164,14 @@ static int exhausive_compression_test(const char *pSrc_filename, bool use_jpgd)
 
     uint8 *pUncomp_image_data = NULL;
 
-    double max_err = 0;
+    double max_err = 0, bpq_sum=0; int bpq_num=0;
     double lowest_psnr = 9e+9;
     double threshold_psnr = 9e+9;
     double threshold_max_err = 0.0f;
 
     image_compare_results prev_results;
 
-    for (uint quality_factor = 1; quality_factor <= 100; quality_factor++) {
+    for (uint quality_factor = 12; quality_factor <= 100; quality_factor+=11) {
         for (uint subsampling = 0; subsampling <= jpge::H2V2; subsampling++) {
             for (uint optimize_huffman_tables = 0; optimize_huffman_tables <= 1; optimize_huffman_tables++) {
                 // Fill in the compression parameter structure.
@@ -204,12 +204,17 @@ static int exhausive_compression_test(const char *pSrc_filename, bool use_jpgd)
 
                 image_compare_results results;
                 image_compare(results, width, height, pImage_data, req_comps, pUncomp_image_data, uncomp_req_comps, (params.m_subsampling == jpge::Y_ONLY) || (actual_comps == 1) || (uncomp_actual_comps == 1));
-                //log_printf("Q: %3u, S: %u, O: %u, CompSize: %7u, Error Max: %3.3f, Mean: %3.3f, Mean^2: %5.3f, RMSE: %3.3f, PSNR: %3.3f\n", quality_factor, subsampling, optimize_huffman_tables, comp_size, results.max_err, results.mean, results.mean_squared, results.root_mean_squared, results.peak_snr);
-                log_printf("%3u, %u, %u, %7u, %3.3f, %3.3f, %5.3f, %3.3f, %3.3f\n", quality_factor, subsampling, optimize_huffman_tables, comp_size, results.max_err, results.mean, results.mean_squared, results.root_mean_squared, results.peak_snr);
+                double bpq = comp_size*results.mean/results.peak_snr/100;
+                log_printf("Q: %3u, S%u, O%u, Size: %7u, Error Max:% 5.0f, Mean:% 6.2f, RMSE:%6.2f, PSNR:%7.3f, BPQ:%6.0f\n",
+                           quality_factor, subsampling, optimize_huffman_tables, comp_size, results.max_err, results.mean, results.root_mean_squared, results.peak_snr, bpq);
                 if (results.max_err > max_err) max_err = results.max_err;
                 if (results.peak_snr < lowest_psnr) lowest_psnr = results.peak_snr;
+                if (quality_factor < 99 && quality_factor > 35) {
+                    bpq_sum += bpq;
+                    bpq_num++;
+                }
 
-                if (quality_factor == 1) {
+                if (quality_factor == 12) {
                     if (results.peak_snr < threshold_psnr)
                         threshold_psnr = results.peak_snr;
                     if (results.max_err > threshold_max_err)
@@ -233,7 +238,7 @@ static int exhausive_compression_test(const char *pSrc_filename, bool use_jpgd)
         }
     }
 
-    log_printf("Max error: %f Lowest PSNR: %f\n", max_err, lowest_psnr);
+    log_printf("Max error: %.0f Lowest PSNR: %.3f, BPQ: %.0f\n", max_err, lowest_psnr, bpq_sum/bpq_num);
 
 failure:
     free(pImage_data);
