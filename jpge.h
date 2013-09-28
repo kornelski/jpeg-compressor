@@ -21,8 +21,9 @@ struct rgba {
 };
 
 struct ycbcr {
-    uint8 y,cb,cr;
+    float y,cb,cr;
 };
+typedef double dct_t;
 
 // JPEG chroma subsampling factors. Y_ONLY (grayscale images) and H2V2 (color images) are the most common.
 enum subsampling_t { Y_ONLY = 0, H1V1 = 1, H2V1 = 2, H2V2 = 3 };
@@ -106,6 +107,13 @@ public:
     int m_bpl_xlt, m_bpl_mcu;
     int m_mcus_per_row;
     int m_mcu_w, m_mcu_h;
+    float *m_mcu_lines[16];
+
+    float get_px_y(int x, int y);
+    float get_px(int x, int y, int c);
+    ycbcr get_px(int x, int y);
+    void set_px(ycbcr px, int x, int y);
+    void set_px(float px, int x, int y);
 };
 
 // Lower level jpeg_encoder class - useful if more control is needed than the above helper functions.
@@ -148,13 +156,10 @@ private:
     jpeg_encoder(const jpeg_encoder &);
     jpeg_encoder &operator =(const jpeg_encoder &);
 
-    typedef int32 sample_array_t;
-
     output_stream *m_pStream;
     params m_params;
     uint8 m_num_components;
     component m_comp[3];
-    uint8 *m_mcu_lines[16];
     uint8 m_mcu_y_ofs;
 
     struct huffman_dcac m_huff[2];
@@ -183,24 +188,24 @@ private:
     void first_pass_init();
     bool second_pass_init();
     bool jpg_open(int p_x_res, int p_y_res, int src_channels);
-    void load_block_8_8_grey(sample_array_t *, int x);
-    void load_block_8_8(sample_array_t *, int x, int y, int c);
-    void load_block_16_8(sample_array_t *, int x, int c);
-    void load_block_16_8_8(sample_array_t *, int x, int c);
-    void load_quantized_coefficients(sample_array_t *pSrc, int16 *pDst, int32 *q);
+    void load_block_8_8_grey(dct_t *, int x);
+    void load_block_8_8(dct_t *, int x, int y, int c);
+    void load_block_16_8(dct_t *, int x, int c);
+    void load_block_16_8_8(dct_t *, int x, int c);
+    void load_quantized_coefficients(dct_t *pSrc, int16 *pDst, int32 *q);
     void flush_output_buffer();
     void put_bits(uint bits, uint len);
     void code_coefficients_pass_one(int16 *pSrc, huffman_dcac *huff, component *);
     void code_coefficients_pass_two(int16 *pSrc, huffman_dcac *huff, component *);
-    void code_block(sample_array_t *, huffman_dcac *huff, int component_num);
+    void code_block(dct_t *, huffman_dcac *huff, int component_num);
     void process_mcu_row();
     bool terminate_pass_one();
     bool terminate_pass_two();
-    void load_mcu_Y(const uint8 *src, uint8 *);
-    void load_mcu_YCC(const uint8 *pSrc, ycbcr *pDst);
+    void load_mcu_Y(const uint8 *pSrc);
+    void load_mcu_YCC(const uint8 *pSrc);
     void clear();
     void init();
-    sample_array_t blend_quad(int n, const uint8 *pSrc1, const uint8 *pSrc2, const uint8 *l1, const uint8 *l2);
+    dct_t blend_quad(int x, int y, int c);
 };
 
 } // namespace jpge
