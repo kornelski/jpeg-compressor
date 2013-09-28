@@ -627,23 +627,37 @@ void jpeg_encoder::load_block_8_8(sample_array_t *pDst, int x, int y, int c)
     }
 }
 
+inline int32 jpeg_encoder::blend_quad(int n, const uint8 *pSrc1, const uint8 *pSrc2, const uint8 *l1, const uint8 *l2)
+{
+    n*=3;
+    int z=n+3;
+    int a = 128-abs(128-l1[n]);
+    int b = 128-abs(128-l1[z]);
+    int c = 128-abs(128-l2[n]);
+    int d = 128-abs(128-l2[z]);
+    sample_array_t divisor = a+b+c+d;
+    if (!divisor) return 0;
+    return ((pSrc1[n]*a + pSrc1[z]*b + pSrc2[n]*c + pSrc2[z]*d) / divisor) - 128;
+}
+
 void jpeg_encoder::load_block_16_8(sample_array_t *pDst, int x, int c)
 {
-    uint8 *pSrc1, *pSrc2;
+    const uint8 *pSrc1, *pSrc2;
+    int luma = (x * (16 * 3));
     x = (x * (16 * 3)) + c;
-    int a = 0, b = 2;
     for (int i = 0; i < 16; i += 2, pDst += 8) {
         pSrc1 = m_mcu_lines[i + 0] + x;
         pSrc2 = m_mcu_lines[i + 1] + x;
-        pDst[0] = ((pSrc1[ 0 * 3] + pSrc1[ 1 * 3] + pSrc2[ 0 * 3] + pSrc2[ 1 * 3] + a) >> 2) - 128;
-        pDst[1] = ((pSrc1[ 2 * 3] + pSrc1[ 3 * 3] + pSrc2[ 2 * 3] + pSrc2[ 3 * 3] + b) >> 2) - 128;
-        pDst[2] = ((pSrc1[ 4 * 3] + pSrc1[ 5 * 3] + pSrc2[ 4 * 3] + pSrc2[ 5 * 3] + a) >> 2) - 128;
-        pDst[3] = ((pSrc1[ 6 * 3] + pSrc1[ 7 * 3] + pSrc2[ 6 * 3] + pSrc2[ 7 * 3] + b) >> 2) - 128;
-        pDst[4] = ((pSrc1[ 8 * 3] + pSrc1[ 9 * 3] + pSrc2[ 8 * 3] + pSrc2[ 9 * 3] + a) >> 2) - 128;
-        pDst[5] = ((pSrc1[10 * 3] + pSrc1[11 * 3] + pSrc2[10 * 3] + pSrc2[11 * 3] + b) >> 2) - 128;
-        pDst[6] = ((pSrc1[12 * 3] + pSrc1[13 * 3] + pSrc2[12 * 3] + pSrc2[13 * 3] + a) >> 2) - 128;
-        pDst[7] = ((pSrc1[14 * 3] + pSrc1[15 * 3] + pSrc2[14 * 3] + pSrc2[15 * 3] + b) >> 2) - 128;
-        int temp = a; a = b; b = temp;
+        const uint8 *l1 = m_mcu_lines[i + 0] + luma;
+        const uint8 *l2 = m_mcu_lines[i + 1] + luma;
+        pDst[0] = blend_quad( 0, pSrc1, pSrc2, l1, l2);
+        pDst[1] = blend_quad( 2, pSrc1, pSrc2, l1, l2);
+        pDst[2] = blend_quad( 4, pSrc1, pSrc2, l1, l2);
+        pDst[3] = blend_quad( 6, pSrc1, pSrc2, l1, l2);
+        pDst[4] = blend_quad( 8, pSrc1, pSrc2, l1, l2);
+        pDst[5] = blend_quad(10, pSrc1, pSrc2, l1, l2);
+        pDst[6] = blend_quad(12, pSrc1, pSrc2, l1, l2);
+        pDst[7] = blend_quad(14, pSrc1, pSrc2, l1, l2);
     }
 }
 

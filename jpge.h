@@ -200,6 +200,7 @@ private:
     void load_mcu_YCC(const uint8 *pSrc, ycbcr *pDst);
     void clear();
     void init();
+    sample_array_t blend_quad(int n, const uint8 *pSrc1, const uint8 *pSrc2, const uint8 *l1, const uint8 *l2);
 };
 
 } // namespace jpge
