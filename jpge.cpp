@@ -301,15 +301,14 @@ static void huffman_enforce_max_code_size(int *pNum_codes, int code_list_len, in
 }
 
 // Generates an optimized offman table.
-void jpeg_encoder::optimize_huffman_table(int table_num, int table_len)
+void huffman_table::optimize(int table_len)
 {
     sym_freq syms0[MAX_HUFF_SYMBOLS], syms1[MAX_HUFF_SYMBOLS];
     syms0[0].m_key = 1; syms0[0].m_sym_index = 0;  // dummy symbol, assures that no valid code contains all 1's
     int num_used_syms = 1;
-    const uint32 *pSym_count = &m_huff_count[table_num][0];
     for (int i = 0; i < table_len; i++)
-        if (pSym_count[i]) {
-            syms0[num_used_syms].m_key = pSym_count[i];
+        if (m_count[i]) {
+            syms0[num_used_syms].m_key = m_count[i];
             syms0[num_used_syms++].m_sym_index = i + 1;
         }
     sym_freq *pSyms = radix_sort_syms(num_used_syms, syms0, syms1);
@@ -324,21 +323,21 @@ void jpeg_encoder::optimize_huffman_table(int table_num, int table_len)
     huffman_enforce_max_code_size(num_codes, num_used_syms, JPGE_CODE_SIZE_LIMIT);
 
     // Compute m_huff_bits array, which contains the # of symbols per code size.
-    clear_obj(m_huff_bits[table_num]);
+    clear_obj(m_bits);
     for (int i = 1; i <= (int)JPGE_CODE_SIZE_LIMIT; i++)
-        m_huff_bits[table_num][i] = static_cast<uint8>(num_codes[i]);
+        m_bits[i] = static_cast<uint8>(num_codes[i]);
 
     // Remove the dummy symbol added above, which must be in largest bucket.
     for (int i = JPGE_CODE_SIZE_LIMIT; i >= 1; i--) {
-        if (m_huff_bits[table_num][i]) {
-            m_huff_bits[table_num][i]--;
+        if (m_bits[i]) {
+            m_bits[i]--;
             break;
         }
     }
 
     // Compute the m_huff_val array, which contains the symbol indices sorted by code size (smallest to largest).
     for (int i = num_used_syms - 1; i >= 1; i--)
-        m_huff_val[table_num][num_used_syms - 1 - i] = static_cast<uint8>(pSyms[i].m_sym_index - 1);
+        m_val[num_used_syms - 1 - i] = static_cast<uint8>(pSyms[i].m_sym_index - 1);
 }
 
 // JPEG marker generation.
@@ -423,11 +422,11 @@ void jpeg_encoder::emit_dht(uint8 *bits, uint8 *val, int index, bool ac_flag)
 // Emit all Huffman tables.
 void jpeg_encoder::emit_dhts()
 {
-    emit_dht(m_huff_bits[0+0], m_huff_val[0+0], 0, false);
-    emit_dht(m_huff_bits[2+0], m_huff_val[2+0], 0, true);
+    emit_dht(m_huff[0].dc.m_bits, m_huff[0].dc.m_val, 0, false);
+    emit_dht(m_huff[0].ac.m_bits, m_huff[0].ac.m_val, 0, true);
     if (m_num_components == 3) {
-        emit_dht(m_huff_bits[0+1], m_huff_val[0+1], 1, false);
-        emit_dht(m_huff_bits[2+1], m_huff_val[2+1], 1, true);
+        emit_dht(m_huff[1].dc.m_bits, m_huff[1].dc.m_val, 1, false);
+        emit_dht(m_huff[1].ac.m_bits, m_huff[1].ac.m_val, 1, true);
     }
 }
 
@@ -461,17 +460,17 @@ void jpeg_encoder::emit_markers()
 }
 
 // Compute the actual canonical Huffman codes/code sizes given the JPEG huff bits and val arrays.
-void jpeg_encoder::compute_huffman_table(uint *codes, uint8 *code_sizes, uint8 *bits, uint8 *val)
+void huffman_table::compute()
 {
-    int i, l, last_p, si;
+    int last_p, si;
     uint8 huff_size[257];
     uint huff_code[257];
     uint code;
 
     int p = 0;
-    for (l = 1; l <= 16; l++)
-        for (i = 1; i <= bits[l]; i++)
-            huff_size[p++] = (char)l;
+    for (char l = 1; l <= 16; l++)
+        for (int i = 1; i <= m_bits[l]; i++)
+            huff_size[p++] = l;
 
     huff_size[p] = 0; last_p = p; // write sentinel
 
@@ -484,11 +483,11 @@ void jpeg_encoder::compute_huffman_table(uint *codes, uint8 *code_sizes, uint8 *
         si++;
     }
 
-    memset(codes, 0, sizeof(codes[0])*256);
-    memset(code_sizes, 0, sizeof(code_sizes[0])*256);
+    memset(m_codes, 0, sizeof(m_codes[0])*256);
+    memset(m_code_sizes, 0, sizeof(m_code_sizes[0])*256);
     for (p = 0; p < last_p; p++) {
-        codes[val[p]]      = huff_code[p];
-        code_sizes[val[p]] = huff_size[p];
+        m_codes[m_val[p]]      = huff_code[p];
+        m_code_sizes[m_val[p]] = huff_size[p];
     }
 }
 
@@ -517,11 +516,11 @@ void jpeg_encoder::first_pass_init()
 
 bool jpeg_encoder::second_pass_init()
 {
-    compute_huffman_table(&m_huff_codes[0+0][0], &m_huff_code_sizes[0+0][0], m_huff_bits[0+0], m_huff_val[0+0]);
-    compute_huffman_table(&m_huff_codes[2+0][0], &m_huff_code_sizes[2+0][0], m_huff_bits[2+0], m_huff_val[2+0]);
+    m_huff[0].ac.compute();
+    m_huff[0].dc.compute();
     if (m_num_components > 1) {
-        compute_huffman_table(&m_huff_codes[0+1][0], &m_huff_code_sizes[0+1][0], m_huff_bits[0+1], m_huff_val[0+1]);
-        compute_huffman_table(&m_huff_codes[2+1][0], &m_huff_code_sizes[2+1][0], m_huff_bits[2+1], m_huff_val[2+1]);
+        m_huff[1].ac.compute();
+        m_huff[1].dc.compute();
     }
     first_pass_init();
     emit_markers();
@@ -580,14 +579,14 @@ bool jpeg_encoder::jpg_open(int p_x_res, int p_y_res, int src_channels)
     m_out_buf_left = JPGE_OUT_BUF_SIZE;
     m_pOut_buf = m_out_buf;
 
+    clear_obj(m_huff);
     if (m_params.m_two_pass_flag) {
-        clear_obj(m_huff_count);
         first_pass_init();
     } else {
-        memcpy(m_huff_bits[0+0], s_dc_lum_bits, 17);    memcpy(m_huff_val [0+0], s_dc_lum_val, DC_LUM_CODES);
-        memcpy(m_huff_bits[2+0], s_ac_lum_bits, 17);    memcpy(m_huff_val [2+0], s_ac_lum_val, AC_LUM_CODES);
-        memcpy(m_huff_bits[0+1], s_dc_chroma_bits, 17); memcpy(m_huff_val [0+1], s_dc_chroma_val, DC_CHROMA_CODES);
-        memcpy(m_huff_bits[2+1], s_ac_chroma_bits, 17); memcpy(m_huff_val [2+1], s_ac_chroma_val, AC_CHROMA_CODES);
+        memcpy(m_huff[0].dc.m_bits, s_dc_lum_bits, 17);    memcpy(m_huff[0].dc.m_val, s_dc_lum_val, DC_LUM_CODES);
+        memcpy(m_huff[0].ac.m_bits, s_ac_lum_bits, 17);    memcpy(m_huff[0].ac.m_val, s_ac_lum_val, AC_LUM_CODES);
+        memcpy(m_huff[1].dc.m_bits, s_dc_chroma_bits, 17); memcpy(m_huff[1].dc.m_val, s_dc_chroma_val, DC_CHROMA_CODES);
+        memcpy(m_huff[1].ac.m_bits, s_ac_chroma_bits, 17); memcpy(m_huff[1].ac.m_val, s_ac_chroma_val, AC_CHROMA_CODES);
         if (!second_pass_init()) return false;   // in effect, skip over the first pass
     }
     return m_all_stream_writes_succeeded;
@@ -691,12 +690,12 @@ void jpeg_encoder::put_bits(uint bits, uint len)
     }
 }
 
-void jpeg_encoder::code_coefficients_pass_one(int component_num)
+void jpeg_encoder::code_coefficients_pass_one(huffman_dcac *huff, int component_num)
 {
     if (component_num >= 3) return; // just to shut up static analysis
     int i, run_len, nbits, temp1;
     int16 *src = m_coefficient_array;
-    uint32 *dc_count = component_num ? m_huff_count[0 + 1] : m_huff_count[0 + 0], *ac_count = component_num ? m_huff_count[2 + 1] : m_huff_count[2 + 0];
+    uint32 *dc_count = huff->dc.m_count, *ac_count = huff->ac.m_count;
 
     temp1 = src[0] - m_last_dc_val[component_num];
     m_last_dc_val[component_num] = src[0];
@@ -726,20 +725,10 @@ void jpeg_encoder::code_coefficients_pass_one(int component_num)
     if (run_len) ac_count[0]++;
 }
 
-void jpeg_encoder::code_coefficients_pass_two(int component_num)
+void jpeg_encoder::code_coefficients_pass_two(huffman_dcac *huff, int component_num)
 {
     int i, j, run_len, nbits, temp1, temp2;
     int16 *pSrc = m_coefficient_array;
-    uint *codes[2];
-    uint8 *code_sizes[2];
-
-    if (component_num == 0) {
-        codes[0] = m_huff_codes[0 + 0]; codes[1] = m_huff_codes[2 + 0];
-        code_sizes[0] = m_huff_code_sizes[0 + 0]; code_sizes[1] = m_huff_code_sizes[2 + 0];
-    } else {
-        codes[0] = m_huff_codes[0 + 1]; codes[1] = m_huff_codes[2 + 1];
-        code_sizes[0] = m_huff_code_sizes[0 + 1]; code_sizes[1] = m_huff_code_sizes[2 + 1];
-    }
 
     temp1 = temp2 = pSrc[0] - m_last_dc_val[component_num];
     m_last_dc_val[component_num] = pSrc[0];
@@ -753,7 +742,7 @@ void jpeg_encoder::code_coefficients_pass_two(int component_num)
         nbits++; temp1 >>= 1;
     }
 
-    put_bits(codes[0][nbits], code_sizes[0][nbits]);
+    put_bits(huff->dc.m_codes[nbits], huff->dc.m_code_sizes[nbits]);
     if (nbits) put_bits(temp2 & ((1 << nbits) - 1), nbits);
 
     for (run_len = 0, i = 1; i < 64; i++) {
@@ -761,7 +750,7 @@ void jpeg_encoder::code_coefficients_pass_two(int component_num)
             run_len++;
         else {
             while (run_len >= 16) {
-                put_bits(codes[1][0xF0], code_sizes[1][0xF0]);
+                put_bits(huff->ac.m_codes[0xF0], huff->ac.m_code_sizes[0xF0]);
                 run_len -= 16;
             }
             if ((temp2 = temp1) < 0) {
@@ -772,54 +761,63 @@ void jpeg_encoder::code_coefficients_pass_two(int component_num)
             while (temp1 >>= 1)
                 nbits++;
             j = (run_len << 4) + nbits;
-            put_bits(codes[1][j], code_sizes[1][j]);
+            put_bits(huff->ac.m_codes[j], huff->ac.m_code_sizes[j]);
             put_bits(temp2 & ((1 << nbits) - 1), nbits);
             run_len = 0;
         }
     }
     if (run_len)
-        put_bits(codes[1][0], code_sizes[1][0]);
+        put_bits(huff->ac.m_codes[0], huff->ac.m_code_sizes[0]);
 }
 
-void jpeg_encoder::code_block(int component_num)
+void jpeg_encoder::code_block(huffman_dcac *huff, int component_num)
 {
     dct(m_sample_array);
     load_quantized_coefficients(component_num);
     if (m_pass_num == 1)
-        code_coefficients_pass_one(component_num);
+        code_coefficients_pass_one(huff, component_num);
     else
-        code_coefficients_pass_two(component_num);
+        code_coefficients_pass_two(huff, component_num);
 }
 
 void jpeg_encoder::process_mcu_row()
 {
     if (m_num_components == 1) {
         for (int i = 0; i < m_mcus_per_row; i++) {
-            load_block_8_8_grey(i); code_block(0);
+            load_block_8_8_grey(i); code_block(&m_huff[0], 0);
         }
     } else if ((m_comp_h_samp[0] == 1) && (m_comp_v_samp[0] == 1)) {
         for (int i = 0; i < m_mcus_per_row; i++) {
-            load_block_8_8(i, 0, 0); code_block(0); load_block_8_8(i, 0, 1); code_block(1); load_block_8_8(i, 0, 2); code_block(2);
+            load_block_8_8(i, 0, 0); code_block(&m_huff[0], 0);
+            load_block_8_8(i, 0, 1); code_block(&m_huff[1], 1);
+            load_block_8_8(i, 0, 2); code_block(&m_huff[1], 2);
         }
     } else if ((m_comp_h_samp[0] == 2) && (m_comp_v_samp[0] == 1)) {
         for (int i = 0; i < m_mcus_per_row; i++) {
-            load_block_8_8(i * 2 + 0, 0, 0); code_block(0); load_block_8_8(i * 2 + 1, 0, 0); code_block(0);
-            load_block_16_8_8(i, 1); code_block(1); load_block_16_8_8(i, 2); code_block(2);
+            load_block_8_8(i * 2 + 0, 0, 0); code_block(&m_huff[0], 0);
+            load_block_8_8(i * 2 + 1, 0, 0); code_block(&m_huff[0], 0);
+            load_block_16_8_8(i, 1); code_block(&m_huff[1], 1);
+            load_block_16_8_8(i, 2); code_block(&m_huff[1], 2);
         }
     } else if ((m_comp_h_samp[0] == 2) && (m_comp_v_samp[0] == 2)) {
         for (int i = 0; i < m_mcus_per_row; i++) {
-            load_block_8_8(i * 2 + 0, 0, 0); code_block(0); load_block_8_8(i * 2 + 1, 0, 0); code_block(0);
-            load_block_8_8(i * 2 + 0, 1, 0); code_block(0); load_block_8_8(i * 2 + 1, 1, 0); code_block(0);
-            load_block_16_8(i, 1); code_block(1); load_block_16_8(i, 2); code_block(2);
+            load_block_8_8(i * 2 + 0, 0, 0); code_block(&m_huff[0], 0);
+            load_block_8_8(i * 2 + 1, 0, 0); code_block(&m_huff[0], 0);
+            load_block_8_8(i * 2 + 0, 1, 0); code_block(&m_huff[0], 0);
+            load_block_8_8(i * 2 + 1, 1, 0); code_block(&m_huff[0], 0);
+            load_block_16_8(i, 1); code_block(&m_huff[1], 1);
+            load_block_16_8(i, 2); code_block(&m_huff[1], 2);
         }
     }
 }
 
 bool jpeg_encoder::terminate_pass_one()
 {
-    optimize_huffman_table(0+0, DC_LUM_CODES); optimize_huffman_table(2+0, AC_LUM_CODES);
+    m_huff[0].dc.optimize(DC_LUM_CODES);
+    m_huff[0].ac.optimize(AC_LUM_CODES);
     if (m_num_components > 1) {
-        optimize_huffman_table(0+1, DC_CHROMA_CODES); optimize_huffman_table(2+1, AC_CHROMA_CODES);
+        m_huff[1].dc.optimize(DC_CHROMA_CODES);
+        m_huff[1].ac.optimize(AC_CHROMA_CODES);
     }
     return second_pass_init();
 }
