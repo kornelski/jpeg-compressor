@@ -821,7 +821,7 @@ void *jpeg_decoder::alloc(size_t nSize, bool zero)
         }
     }
     if (!rv) {
-        int capacity = JPGD_MAX(32768 - 256, (nSize + 2047) & ~2047);
+        size_t capacity = JPGD_MAX(32768 - 256, (nSize + 2047) & ~2047);
         mem_block *b = (mem_block *)jpgd_malloc(sizeof(mem_block) + capacity);
         if (!b) {
             stop_decoding(JPGD_NOTENOUGHMEM);
@@ -2870,12 +2870,13 @@ unsigned char *decompress_jpeg_image_from_stream(jpeg_decoder_stream *pStream, i
         return NULL;
 
     for (int y = 0; y < image_height; y++) {
-        const uint8 *pScan_line;
+        const uint8 *pScan_line=0;
         uint scan_line_len;
         if (decoder.decode((const void **)&pScan_line, &scan_line_len) != JPGD_SUCCESS) {
             jpgd_free(pImage_data);
             return NULL;
         }
+        JPGD_ASSERT(pScan_line);
 
         uint8 *pDst = pImage_data + y * dst_bpl;
 

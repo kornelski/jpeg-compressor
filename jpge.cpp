@@ -973,7 +973,7 @@ public:
         return m_bStatus;
     }
 
-    uint get_size() const {
+    long get_size() const {
         return m_pFile ? ftell(m_pFile) : 0;
     }
 };

@@ -2065,7 +2065,7 @@ static int stbi_jpeg_info_raw(jpeg *j, int *x, int *y, int *comp)
 #ifndef STBI_NO_STDIO
 int stbi_jpeg_test_file(FILE *f)
 {
-   int n,r;
+    long n; int r;
    jpeg j;
    n = ftell(f);
    start_file(&j.s, f);
@@ -3054,7 +3054,7 @@ unsigned char *stbi_png_load_from_memory(stbi_uc const *buffer, int len, int *x,
 int stbi_png_test_file(FILE *f)
 {
    png p;
-   int n,r;
+    long n; int r;
    n = ftell(f);
    start_file(&p.s, f);
    r = parse_png_file(&p, SCAN_type,STBI_default);
@@ -3130,7 +3130,7 @@ static int bmp_test(stbi *s)
 int      stbi_bmp_test_file        (FILE *f)
 {
    stbi s;
-   int r,n = ftell(f);
+    int r; long n = ftell(f);
    start_file(&s,f);
    r = bmp_test(&s);
    fseek(f,n,SEEK_SET);
@@ -3230,7 +3230,7 @@ static stbi_uc *bmp_load(stbi *s, int *x, int *y, int *comp, int req_comp)
             get32le(s);
          }
          if (bpp == 16 || bpp == 32) {
-            mr = mg = mb = 0;
+            mg = mb = 0;
             if (compress == 0) {
                if (bpp == 32) {
                   mr = 0xffu << 16;
@@ -3482,7 +3482,7 @@ static int tga_test(stbi *s)
 int      stbi_tga_test_file        (FILE *f)
 {
    stbi s;
-   int r,n = ftell(f);
+    int r; long n = ftell(f);
    start_file(&s, f);
    r = tga_test(&s);
    fseek(f,n,SEEK_SET);
@@ -3758,7 +3758,7 @@ static int psd_test(stbi *s)
 int stbi_psd_test_file(FILE *f)
 {
    stbi s;
-   int r,n = ftell(f);
+    int r; long n = ftell(f);
    start_file(&s, f);
    r = psd_test(&s);
    fseek(f,n,SEEK_SET);
@@ -4245,7 +4245,7 @@ static int gif_test(stbi *s)
 int      stbi_gif_test_file        (FILE *f)
 {
    stbi s;
-   int r,n = ftell(f);
+    int r; long n = ftell(f);
    start_file(&s,f);
    r = gif_test(&s);
    fseek(f,n,SEEK_SET);
@@ -4638,7 +4638,7 @@ int stbi_hdr_test_memory(stbi_uc const *buffer, int len)
 int stbi_hdr_test_file(FILE *f)
 {
    stbi s;
-   int r,n = ftell(f);
+    int r; long n = ftell(f);
    start_file(&s, f);
    r = hdr_test(&s);
    fseek(f,n,SEEK_SET);
@@ -4702,7 +4702,7 @@ static float *hdr_load(stbi *s, int *x, int *y, int *comp, int req_comp)
    char buffer[HDR_BUFLEN];
    char *token;
    int valid = 0;
-   int width, height;
+   long width, height;
    stbi_uc *scanline;
    float *hdr_data;
    int len;
@@ -4734,8 +4734,8 @@ static float *hdr_load(stbi *s, int *x, int *y, int *comp, int req_comp)
    token += 3;
    width = strtol(token, NULL, 10);
 
-   *x = width;
-   *y = height;
+   *x = (int)width;
+   *y = (int)height;
 
    *comp = 3;
    if (req_comp == 0) req_comp = 3;
