@@ -76,6 +76,22 @@ namespace jpge
     template<class T> inline bool put_obj(const T& obj) { return put_buf(&obj, sizeof(T)); }
   };
 
+  class huffman_table {
+  public:
+    uint m_codes[256];
+    uint8 m_code_sizes[256];
+    uint8 m_bits[17];
+    uint8 m_val[256];
+    uint32 m_count[256];
+
+    void optimize(int table_len);
+    void compute();
+  };
+
+  struct huffman_dcac {
+    huffman_table ac,dc;
+  };
+
   // Lower level jpeg_encoder class - useful if more control is needed than the above helper functions.
   class jpeg_encoder
   {
@@ -125,12 +141,8 @@ namespace jpge
     sample_array_t m_sample_array[64];
     int16 m_coefficient_array[64];
     int32 m_quantization_tables[2][64];
-    uint m_huff_codes[4][256];
-    uint8 m_huff_code_sizes[4][256];
-    uint8 m_huff_bits[4][17];
-    uint8 m_huff_val[4][256];
-    uint32 m_huff_count[4][256];
     int m_last_dc_val[3];
+    struct huffman_dcac m_huff[2];
     enum { JPGE_OUT_BUF_SIZE = 2048 };
     uint8 m_out_buf[JPGE_OUT_BUF_SIZE];
     uint8 *m_pOut_buf;
@@ -140,7 +152,6 @@ namespace jpge
     uint8 m_pass_num;
     bool m_all_stream_writes_succeeded;
 
-    void optimize_huffman_table(int table_num, int table_len);
     void emit_byte(uint8 i);
     void emit_word(uint i);
     void emit_marker(int marker);
@@ -151,7 +162,6 @@ namespace jpge
     void emit_dhts();
     void emit_sos();
     void emit_markers();
-    void compute_huffman_table(uint *codes, uint8 *code_sizes, uint8 *bits, uint8 *val);
     void compute_quant_table(int32 *dst, int16 *src);
     void adjust_quant_table(int32 *dst, int32 *src);
     void first_pass_init();
@@ -164,9 +174,9 @@ namespace jpge
     void load_quantized_coefficients(int component_num);
     void flush_output_buffer();
     void put_bits(uint bits, uint len);
-    void code_coefficients_pass_one(int component_num);
-    void code_coefficients_pass_two(int component_num);
-    void code_block(int component_num);
+    void code_coefficients_pass_one(huffman_dcac *huff, int component_num);
+    void code_coefficients_pass_two(huffman_dcac *huff, int component_num);
+    void code_block(huffman_dcac *huff, int component_num);
     void process_mcu_row();
     bool terminate_pass_one();
     bool terminate_pass_two();
