@@ -67,12 +67,12 @@ static void log_printf(const char *pMsg, ...)
   }
 }
 
-static uint get_file_size(const char *pFilename)
+static long get_file_size(const char *pFilename)
 {
   FILE *pFile = fopen(pFilename, "rb");
   if (!pFile) return 0;
   fseek(pFile, 0, SEEK_END);
-  uint file_size = ftell(pFile);
+  long file_size = ftell(pFile);
   fclose(pFile);
   return file_size;
 }
@@ -488,7 +488,7 @@ int main(int arg_c, char* ppArgs[])
 
   double total_comp_time = tm.get_elapsed_ms();
 
-  const uint comp_file_size = get_file_size(pDst_filename);
+  const long comp_file_size = get_file_size(pDst_filename);
   const uint total_pixels = width * height;
   log_printf("Compressed file size: %u, bits/pixel: %3.3f\n", comp_file_size, (comp_file_size * 8.0f) / total_pixels);
 
