@@ -102,12 +102,11 @@ struct huffman_dcac {
 
 class image {
 public:
-    int m_x, m_y, m_bpp, m_bpl;
+    int m_x, m_y, m_bpp;
     int m_x_mcu, m_y_mcu;
-    int m_bpl_xlt, m_bpl_mcu;
     int m_mcus_per_row;
     int m_mcu_w, m_mcu_h;
-    float *m_mcu_lines[16];
+    float *m_mcu_lines[3];
 
     float get_px_y(int x, int y);
     float get_px(int x, int y, int c);
@@ -137,20 +136,16 @@ public:
     // Deinitializes the compressor, freeing any allocated memory. May be called at any time.
     void deinit();
 
-    uint get_total_passes() const {
-        return m_params.m_two_pass_flag ? 2 : 1;
-    }
-    inline uint get_cur_pass() {
-        return m_pass_num;
-    }
-
     // Call this method with each source scanline.
     // width * src_channels bytes per scanline is expected (RGB or Y format).
     // Returns false on out of memory or if a stream write fails.
-    bool process_scanline(const uint8 *pScanline);
+    bool read_image(const uint8 *data);
+    bool process_scanline2(const uint8 *pScanline, int y);
 
     // You must call after all scanlines are processed to finish compression.
     bool process_end_of_image();
+    void load_mcu_Y(const uint8 *pSrc, int y);
+    void load_mcu_YCC(const uint8 *pSrc, int y);
 
 private:
     jpeg_encoder(const jpeg_encoder &);
@@ -160,7 +155,7 @@ private:
     params m_params;
     uint8 m_num_components;
     component m_comp[3];
-    uint8 m_mcu_y_ofs;
+    int32 m_mcu_y_ofs;
 
     struct huffman_dcac m_huff[2];
     enum { JPGE_OUT_BUF_SIZE = 2048 };
@@ -188,21 +183,19 @@ private:
     void first_pass_init();
     bool second_pass_init();
     bool jpg_open(int p_x_res, int p_y_res, int src_channels);
-    void load_block_8_8_grey(dct_t *, int x);
+    void load_block_8_8_grey(dct_t *, int x, int y);
     void load_block_8_8(dct_t *, int x, int y, int c);
-    void load_block_16_8(dct_t *, int x, int c);
-    void load_block_16_8_8(dct_t *, int x, int c);
+    void load_block_16_8(dct_t *, int x, int y, int c);
+    void load_block_16_8_8(dct_t *, int x, int y, int c);
     void load_quantized_coefficients(dct_t *pSrc, int16 *pDst, int32 *q);
     void flush_output_buffer();
     void put_bits(uint bits, uint len);
     void code_coefficients_pass_one(int16 *pSrc, huffman_dcac *huff, component *);
     void code_coefficients_pass_two(int16 *pSrc, huffman_dcac *huff, component *);
     void code_block(dct_t *, huffman_dcac *huff, int component_num);
-    void process_mcu_row();
+    void process_mcu_row(int y);
     bool terminate_pass_one();
     bool terminate_pass_two();
-    void load_mcu_Y(const uint8 *pSrc);
-    void load_mcu_YCC(const uint8 *pSrc);
     void clear();
     void init();
     dct_t blend_quad(int x, int y, int c);
