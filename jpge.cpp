@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #define JPGE_MAX(a,b) (((a)>(b))?(a):(b))
 #define JPGE_MIN(a,b) (((a)<(b))?(a):(b))
@@ -116,6 +117,9 @@ inline void image::set_px(float px, int x, int y) {
     m_mcu_lines[0][y*m_x_mcu + x] = px;
 }
 
+dctq_t *image::get_dctq(int x, int y, int c) {
+    return &m_dctqs[c][64*(y/8 * m_x_mcu/8 + x/8)];
+}
 
 // Forward DCT
 static void dct(dct_t *data)
@@ -537,28 +541,28 @@ bool jpeg_encoder::jpg_open(int p_x_res, int p_y_res, int src_channels)
     case Y_ONLY: {
         m_num_components = 1;
         m_comp[0].m_h_samp = 1; m_comp[0].m_v_samp = 1;
-        m_image.m_mcu_w          = 8; m_image.m_mcu_h          = 8;
+        m_image.m_mcu_w    = 8; m_image.m_mcu_h    = 8;
         break;
     }
     case H1V1: {
         m_comp[0].m_h_samp = 1; m_comp[0].m_v_samp = 1;
         m_comp[1].m_h_samp = 1; m_comp[1].m_v_samp = 1;
         m_comp[2].m_h_samp = 1; m_comp[2].m_v_samp = 1;
-        m_image.m_mcu_w          = 8; m_image.m_mcu_h          = 8;
+        m_image.m_mcu_w    = 8; m_image.m_mcu_h    = 8;
         break;
     }
     case H2V1: {
         m_comp[0].m_h_samp = 2; m_comp[0].m_v_samp = 1;
         m_comp[1].m_h_samp = 1; m_comp[1].m_v_samp = 1;
         m_comp[2].m_h_samp = 1; m_comp[2].m_v_samp = 1;
-        m_image.m_mcu_w          = 16; m_image.m_mcu_h         = 8;
+        m_image.m_mcu_w    = 16; m_image.m_mcu_h   = 8;
         break;
     }
     case H2V2: {
         m_comp[0].m_h_samp = 2; m_comp[0].m_v_samp = 2;
         m_comp[1].m_h_samp = 1; m_comp[1].m_v_samp = 1;
         m_comp[2].m_h_samp = 1; m_comp[2].m_v_samp = 1;
-        m_image.m_mcu_w          = 16; m_image.m_mcu_h         = 16;
+        m_image.m_mcu_w    = 16; m_image.m_mcu_h  = 16;
     }
     }
 
@@ -566,10 +570,10 @@ bool jpeg_encoder::jpg_open(int p_x_res, int p_y_res, int src_channels)
     m_image.m_bpp      = src_channels;
     m_image.m_x_mcu    = (m_image.m_x + m_image.m_mcu_w - 1) & (~(m_image.m_mcu_w - 1));
     m_image.m_y_mcu    = (m_image.m_y + m_image.m_mcu_h - 1) & (~(m_image.m_mcu_h - 1));
-    m_image.m_mcus_per_row   = m_image.m_x_mcu / m_image.m_mcu_w;
 
     for(int c=0; c < m_num_components; c++) {
         m_image.m_mcu_lines[c] = static_cast<float *>(jpge_malloc(m_image.m_x_mcu * sizeof(float) * m_image.m_y_mcu));
+        m_image.m_dctqs[c] = static_cast<dctq_t *>(jpge_malloc(m_image.m_x_mcu * sizeof(dctq_t) * m_image.m_y_mcu)); // FIXME: wasteful with subsampling
     }
 
     clear_obj(m_huff);
@@ -594,7 +598,6 @@ bool jpeg_encoder::jpg_open(int p_x_res, int p_y_res, int src_channels)
 void jpeg_encoder::load_block_8_8_grey(dct_t *pDst, int x, int y)
 {
     uint8 *pSrc;
-    x <<= 3;
     for (int i = 0; i < 8; i++, pDst += 8) {
         pDst[0] = m_image.get_px_y(x+0, y+i) - 128.0;
         pDst[1] = m_image.get_px_y(x+1, y+i) - 128.0;
@@ -610,7 +613,6 @@ void jpeg_encoder::load_block_8_8_grey(dct_t *pDst, int x, int y)
 void jpeg_encoder::load_block_8_8(dct_t *pDst, int x, int y, int c)
 {
     uint8 *pSrc;
-    x <<= 3;
     for (int i = 0; i < 8; i++, pDst += 8) {
         pDst[0] = m_image.get_px(x+0, y+i, c) - 128.0;
         pDst[1] = m_image.get_px(x+1, y+i, c) - 128.0;
@@ -639,7 +641,6 @@ inline dct_t jpeg_encoder::blend_quad(int x, int y, int ch)
 
 void jpeg_encoder::load_block_16_8(dct_t *pDst, int x, int y, int c)
 {
-    x = x * 16;
     for (int i = 0; i < 16; i += 2, pDst += 8) {
         pDst[0] = blend_quad(x+ 0, y+i, c);
         pDst[1] = blend_quad(x+ 2, y+i, c);
@@ -654,7 +655,6 @@ void jpeg_encoder::load_block_16_8(dct_t *pDst, int x, int y, int c)
 
 void jpeg_encoder::load_block_16_8_8(dct_t *pDst, int x, int y, int c)
 {
-    x = x * 16;
     for (int i = 0; i < 8; i++, pDst += 8) {
         pDst[0] = (m_image.get_px(x+ 0, y+i, c) + m_image.get_px(x+ 1, y+i, c)) /2.0 - 128.0;
         pDst[1] = (m_image.get_px(x+ 2, y+i, c) + m_image.get_px(x+ 3, y+i, c)) /2.0 - 128.0;
@@ -667,22 +667,20 @@ void jpeg_encoder::load_block_16_8_8(dct_t *pDst, int x, int y, int c)
     }
 }
 
-void jpeg_encoder::load_quantized_coefficients(dct_t *pSrc, int16 *pDst, int32 *q)
+void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant)
 {
+    dct(pSrc);
     for (int i = 0; i < 64; i++) {
         dct_t j = pSrc[s_zag[i]];
+        dctq_t qj;
         if (j < 0) {
-            if ((j = -j + (*q >> 1)) < *q)
-                *pDst++ = 0;
-            else
-                *pDst++ = static_cast<int16>(-(j / *q));
+            j = -j + (quant[i] >> 1);
+            qj = (j < quant[i]) ? 0 : static_cast<dctq_t>(-(j / quant[i]));
         } else {
-            if ((j = j + (*q >> 1)) < *q)
-                *pDst++ = 0;
-            else
-                *pDst++ = static_cast<int16>((j / *q));
+            j = j + (quant[i] >> 1);
+            qj = (j < quant[i]) ? 0 : static_cast<dctq_t>((j / quant[i]));
         }
-        q++;
+        *pDst++ = qj;
     }
 }
 
@@ -707,7 +705,7 @@ void jpeg_encoder::put_bits(uint bits, uint len)
     }
 }
 
-void jpeg_encoder::code_coefficients_pass_one(int16 *src, huffman_dcac *huff, component *comp)
+void jpeg_encoder::code_coefficients_pass_one(dctq_t *src, huffman_dcac *huff, component *comp)
 {
     int i, run_len, nbits, temp1;
     uint32 *dc_count = huff->dc.m_count, *ac_count = huff->ac.m_count;
@@ -740,7 +738,7 @@ void jpeg_encoder::code_coefficients_pass_one(int16 *src, huffman_dcac *huff, co
     if (run_len) ac_count[0]++;
 }
 
-void jpeg_encoder::code_coefficients_pass_two(int16 *pSrc, huffman_dcac *huff, component *comp)
+void jpeg_encoder::code_coefficients_pass_two(dctq_t *pSrc, huffman_dcac *huff, component *comp)
 {
     int i, j, run_len, nbits, temp1, temp2;
 
@@ -784,12 +782,8 @@ void jpeg_encoder::code_coefficients_pass_two(int16 *pSrc, huffman_dcac *huff, c
         put_bits(huff->ac.m_codes[0], huff->ac.m_code_sizes[0]);
 }
 
-void jpeg_encoder::code_block(dct_t *src, huffman_dcac *huff, int component_num)
+void jpeg_encoder::code_block(dct_t *src, dctq_t *coefficients, huffman_dcac *huff, int component_num)
 {
-    int16 coefficients[64];
-
-    dct(src);
-    load_quantized_coefficients(src, coefficients, huff->m_quantization_table);
     if (m_pass_num == 1)
         code_coefficients_pass_one(coefficients, huff, &m_comp[component_num]);
     else
@@ -801,30 +795,82 @@ void jpeg_encoder::process_mcu_row(int y)
     dct_t sample[64];
 
     if (m_num_components == 1) {
-        for (int x = 0; x < m_image.m_mcus_per_row; x++) {
-            load_block_8_8_grey(sample, x, y); code_block(sample, &m_huff[0], 0);
+        for (int x = 0; x < m_image.m_x_mcu; x+=m_image.m_mcu_w) {
+            dctq_t *quant = m_image.get_dctq(x, y, 0);
+            load_block_8_8_grey(sample, x, y);
+            quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
+            code_block(sample, quant, &m_huff[0], 0);
         }
     } else if ((m_comp[0].m_h_samp == 1) && (m_comp[0].m_v_samp == 1)) {
-        for (int x = 0; x < m_image.m_mcus_per_row; x++) {
-            load_block_8_8(sample, x, y, 0); code_block(sample, &m_huff[0], 0);
-            load_block_8_8(sample, x, y, 1); code_block(sample, &m_huff[1], 1);
-            load_block_8_8(sample, x, y, 2); code_block(sample, &m_huff[1], 2);
+        for (int x = 0; x < m_image.m_x_mcu; x+=m_image.m_mcu_w) {
+            dctq_t *quant = m_image.get_dctq(x, y, 0);
+            load_block_8_8(sample, x, y, 0);
+            quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
+            code_block(sample, quant, &m_huff[0], 0);
+
+            quant = m_image.get_dctq(x, y, 1);
+            load_block_8_8(sample, x, y, 1);
+            quantize_pixels(sample, quant, m_huff[1].m_quantization_table);
+            code_block(sample, quant, &m_huff[1], 1);
+
+            quant = m_image.get_dctq(x, y, 2);
+            load_block_8_8(sample, x, y, 2);
+            quantize_pixels(sample, quant, m_huff[1].m_quantization_table);
+            code_block(sample, quant, &m_huff[1], 2);
         }
     } else if ((m_comp[0].m_h_samp == 2) && (m_comp[0].m_v_samp == 1)) {
-        for (int x = 0; x < m_image.m_mcus_per_row; x++) {
-            load_block_8_8(sample, x*2+0, y, 0); code_block(sample, &m_huff[0], 0);
-            load_block_8_8(sample, x*2+1, y, 0); code_block(sample, &m_huff[0], 0);
-            load_block_16_8_8(sample, x, y, 1); code_block(sample, &m_huff[1], 1);
-            load_block_16_8_8(sample, x, y, 2); code_block(sample, &m_huff[1], 2);
+        for (int x = 0; x < m_image.m_x_mcu; x+=m_image.m_mcu_w) {
+            dctq_t *quant = m_image.get_dctq(x, y, 0);
+            load_block_8_8(sample, x, y, 0);
+            quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
+            code_block(sample, quant, &m_huff[0], 0);
+
+            quant = m_image.get_dctq(x+8, y, 0);
+            load_block_8_8(sample, x+8, y, 0);
+            quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
+            code_block(sample, quant, &m_huff[0], 0);
+
+            quant = m_image.get_dctq(x, y, 1);
+            load_block_16_8_8(sample, x, y, 1);
+            quantize_pixels(sample, quant, m_huff[1].m_quantization_table);
+            code_block(sample, quant, &m_huff[1], 1);
+
+            quant = m_image.get_dctq(x, y, 2);
+            load_block_16_8_8(sample, x, y, 2);
+            quantize_pixels(sample, quant, m_huff[1].m_quantization_table);
+            code_block(sample, quant, &m_huff[1], 2);
         }
     } else if ((m_comp[0].m_h_samp == 2) && (m_comp[0].m_v_samp == 2)) {
-        for (int x = 0; x < m_image.m_mcus_per_row; x++) {
-            load_block_8_8(sample, x*2+0, y+0, 0); code_block(sample, &m_huff[0], 0);
-            load_block_8_8(sample, x*2+1, y+0, 0); code_block(sample, &m_huff[0], 0);
-            load_block_8_8(sample, x*2+0, y+8, 0); code_block(sample, &m_huff[0], 0);
-            load_block_8_8(sample, x*2+1, y+8, 0); code_block(sample, &m_huff[0], 0);
-            load_block_16_8(sample, x, y, 1); code_block(sample, &m_huff[1], 1);
-            load_block_16_8(sample, x, y, 2); code_block(sample, &m_huff[1], 2);
+        for (int x = 0; x < m_image.m_x_mcu; x+=m_image.m_mcu_w) {
+            dctq_t *quant = m_image.get_dctq(x, y, 0);
+            load_block_8_8(sample, x,  y,  0);
+            quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
+            code_block(sample, quant, &m_huff[0], 0);
+
+            quant = m_image.get_dctq(x+8, y, 0);
+            load_block_8_8(sample, x+8,y,  0);
+            quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
+            code_block(sample, quant, &m_huff[0], 0);
+
+            quant = m_image.get_dctq(x, y+8, 0);
+            load_block_8_8(sample, x,  y+8,0);
+            quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
+            code_block(sample, quant, &m_huff[0], 0);
+
+            quant = m_image.get_dctq(x+8, y+8, 0);
+            load_block_8_8(sample, x+8,y+8,0);
+            quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
+            code_block(sample, quant, &m_huff[0], 0);
+
+            quant = m_image.get_dctq(x, y, 1);
+            load_block_16_8(sample,x,  y,  1);
+            quantize_pixels(sample, quant, m_huff[1].m_quantization_table);
+            code_block(sample, quant, &m_huff[1], 1);
+
+            quant = m_image.get_dctq(x, y, 2);
+            load_block_16_8(sample,x,  y,  2);
+            quantize_pixels(sample, quant, m_huff[1].m_quantization_table);
+            code_block(sample, quant, &m_huff[1], 2);
         }
     }
 }
@@ -932,6 +978,7 @@ void jpeg_encoder::deinit()
 {
     for(int c=0; c < m_num_components; c++) {
         jpge_free(m_image.m_mcu_lines[c]);
+        jpge_free(m_image.m_dctqs[c]);
     }
     clear();
 }

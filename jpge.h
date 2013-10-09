@@ -24,6 +24,7 @@ struct ycbcr {
     float y,cb,cr;
 };
 typedef double dct_t;
+typedef int16 dctq_t; // quantized
 
 // JPEG chroma subsampling factors. Y_ONLY (grayscale images) and H2V2 (color images) are the most common.
 enum subsampling_t { Y_ONLY = 0, H1V1 = 1, H2V1 = 2, H2V2 = 3 };
@@ -107,12 +108,15 @@ public:
     int m_mcus_per_row;
     int m_mcu_w, m_mcu_h;
     float *m_mcu_lines[3];
+    dctq_t *m_dctqs[3]; // quantized dcts
 
     float get_px_y(int x, int y);
     float get_px(int x, int y, int c);
     ycbcr get_px(int x, int y);
     void set_px(ycbcr px, int x, int y);
     void set_px(float px, int x, int y);
+
+    dctq_t *get_dctq(int x, int y, int c);
 };
 
 // Lower level jpeg_encoder class - useful if more control is needed than the above helper functions.
@@ -187,12 +191,12 @@ private:
     void load_block_8_8(dct_t *, int x, int y, int c);
     void load_block_16_8(dct_t *, int x, int y, int c);
     void load_block_16_8_8(dct_t *, int x, int y, int c);
-    void load_quantized_coefficients(dct_t *pSrc, int16 *pDst, int32 *q);
+    void quantize_pixels(dct_t *pSrc, int16 *pDst, const int32 *q);
     void flush_output_buffer();
     void put_bits(uint bits, uint len);
     void code_coefficients_pass_one(int16 *pSrc, huffman_dcac *huff, component *);
     void code_coefficients_pass_two(int16 *pSrc, huffman_dcac *huff, component *);
-    void code_block(dct_t *, huffman_dcac *huff, int component_num);
+    void code_block(dct_t *src, dctq_t *coefficients, huffman_dcac *huff, int component_num);
     void process_mcu_row(int y);
     bool terminate_pass_one();
     bool terminate_pass_two();
