@@ -498,9 +498,13 @@ void jpeg_encoder::compute_quant_table(int32 *pDst, int16 *pSrc)
     else
         q = 200 - m_params.m_quality * 2;
     for (int i = 0; i < 64; i++) {
-        int32 j = *pSrc++; j = (j * q + 50L) / 100L;
-        *pDst++ = JPGE_MIN(JPGE_MAX(j, 1), 255);
+        int32 j = pSrc[i]; j = (j * q + 50L) / 100L;
+        pDst[i] = JPGE_MIN(JPGE_MAX(j, 1), 1024/3);
     }
+    // DC quantized worse than 8 makes overall quality fall off the cliff
+    if (pDst[0] > 8) pDst[0] = (pDst[0]+8*3)/4;
+    if (pDst[1] > 24) pDst[1] = (pDst[1]+24)/2;
+    if (pDst[2] > 24) pDst[2] = (pDst[2]+24)/2;
 }
 
 // Higher-level methods.
