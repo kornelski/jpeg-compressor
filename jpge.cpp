@@ -987,6 +987,21 @@ bool jpeg_encoder::read_image(const uint8 *image_data)
         }
     }
 
+    // overflow white and black, making distortions overflow as well,
+    // so distortions (ringing) will be clamped by the decoder
+    if (m_huff[0].m_quantization_table[0] > 2) {
+        for(int c=0; c < m_num_components; c++) {
+            for(int y=0; y < m_image.m_y_mcu; y++) {
+                for(int x=0; x < m_image.m_x_mcu; x++) {
+                    float px = m_image.get_px(x,y,c);
+                    if (px < 1.0) px = -m_huff[0].m_quantization_table[0];
+                    else if (px > 254) px = 255+m_huff[0].m_quantization_table[0];
+                    m_image.set_px(px, x, y, c);
+                }
+            }
+        }
+    }
+
     return true;
 }
 
