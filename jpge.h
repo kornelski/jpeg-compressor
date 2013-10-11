@@ -110,11 +110,10 @@ public:
     float *m_mcu_lines[3];
     dctq_t *m_dctqs[3]; // quantized dcts
 
-    float get_px_y(int x, int y);
     float get_px(int x, int y, int c);
     ycbcr get_px(int x, int y);
+    void set_px(float px, int x, int y, int c);
     void set_px(ycbcr px, int x, int y);
-    void set_px(float px, int x, int y);
 
     dctq_t *get_dctq(int x, int y, int c);
 };
