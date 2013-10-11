@@ -606,6 +606,16 @@ void jpeg_encoder::load_block_8_8(dct_t *pDst, int x, int y, int c)
     }
 }
 
+inline dct_t jpeg_encoder::blend_dual(int x, int y, int ch)
+{
+    dct_t a = 128-abs(128 - m_image.get_px(x,  y, 0));
+    dct_t b = 128-abs(128 - m_image.get_px(x+1,y, 0));
+    dct_t divisor = a+b;
+    if (!divisor) return m_image.get_px(x,y,ch);
+    return (m_image.get_px(x,  y, ch)*a
+          + m_image.get_px(x+1,y, ch)*b) / divisor;
+}
+
 inline dct_t jpeg_encoder::blend_quad(int x, int y, int ch)
 {
     dct_t a = 128-abs(128 - m_image.get_px(x,  y,  0));
@@ -962,7 +972,7 @@ bool jpeg_encoder::read_image(const uint8 *image_data)
         for(int c=1; c < m_num_components; c++) {
             for(int y=0; y < m_image.m_y_mcu; y++) {
                 for(int x=0; x < m_image.m_x_mcu; x+=2) {
-                    m_image.set_px((m_image.get_px(x, y, c) + m_image.get_px(x+1, y, c))/2.0, x/2, y, c);
+                    m_image.set_px(blend_dual(x, y, c), x/2, y, c);
                 }
             }
         }

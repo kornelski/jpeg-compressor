@@ -201,6 +201,7 @@ private:
     bool terminate_pass_two();
     void clear();
     void init();
+    dct_t blend_dual(int x, int y, int c);
     dct_t blend_quad(int x, int y, int c);
 };
 
