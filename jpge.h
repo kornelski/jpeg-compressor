@@ -195,7 +195,7 @@ private:
     void put_bits(uint bits, uint len);
     void code_coefficients_pass_one(int16 *pSrc, huffman_dcac *huff, component *);
     void code_coefficients_pass_two(int16 *pSrc, huffman_dcac *huff, component *);
-    void code_block(dct_t *src, dctq_t *coefficients, huffman_dcac *huff, int component_num);
+    void code_block(dctq_t *coefficients, huffman_dcac *huff, component *comp);
     void process_mcu_row(int y);
     bool terminate_pass_one();
     bool terminate_pass_two();

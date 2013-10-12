@@ -758,95 +758,124 @@ void jpeg_encoder::code_coefficients_pass_two(dctq_t *pSrc, huffman_dcac *huff, 
         put_bits(huff->ac.m_codes[0], huff->ac.m_code_sizes[0]);
 }
 
-void jpeg_encoder::code_block(dct_t *src, dctq_t *coefficients, huffman_dcac *huff, int component_num)
+void jpeg_encoder::code_block(dctq_t *coefficients, huffman_dcac *huff, component *comp)
 {
     if (m_pass_num == 1)
-        code_coefficients_pass_one(coefficients, huff, &m_comp[component_num]);
+        code_coefficients_pass_one(coefficients, huff, comp);
     else
-        code_coefficients_pass_two(coefficients, huff, &m_comp[component_num]);
+        code_coefficients_pass_two(coefficients, huff, comp);
 }
 
 void jpeg_encoder::process_mcu_row(int y)
 {
     dct_t sample[64];
+    bool quantize = !m_params.m_two_pass_flag || m_pass_num == 1;
 
     if (m_num_components == 1) {
         for (int x = 0; x < m_image.m_x_mcu; x+=m_image.m_mcu_w) {
             dctq_t *quant = m_image.get_dctq(x, y, 0);
-            load_block_8_8(sample, x, y, 0);
-            quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
-            code_block(sample, quant, &m_huff[0], 0);
+            if (quantize) {
+                load_block_8_8(sample, x, y, 0);
+                quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
+            }
+            code_block(quant, &m_huff[0], &m_comp[0]);
         }
     } else if ((m_comp[0].m_h_samp == 1) && (m_comp[0].m_v_samp == 1)) {
         for (int x = 0; x < m_image.m_x_mcu; x+=m_image.m_mcu_w) {
             dctq_t *quant = m_image.get_dctq(x, y, 0);
-            load_block_8_8(sample, x, y, 0);
-            quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
-            code_block(sample, quant, &m_huff[0], 0);
+            if (quantize) {
+                load_block_8_8(sample, x, y, 0);
+                quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
+            }
+            code_block(quant, &m_huff[0], &m_comp[0]);
 
             quant = m_image.get_dctq(x, y, 1);
-            load_block_8_8(sample, x, y, 1);
-            quantize_pixels(sample, quant, m_huff[1].m_quantization_table);
-            code_block(sample, quant, &m_huff[1], 1);
+            if (quantize) {
+                load_block_8_8(sample, x, y, 1);
+                quantize_pixels(sample, quant, m_huff[1].m_quantization_table);
+            }
+            code_block(quant, &m_huff[1], &m_comp[1]);
 
             quant = m_image.get_dctq(x, y, 2);
-            load_block_8_8(sample, x, y, 2);
-            quantize_pixels(sample, quant, m_huff[1].m_quantization_table);
-            code_block(sample, quant, &m_huff[1], 2);
+            if (quantize) {
+                load_block_8_8(sample, x, y, 2);
+                quantize_pixels(sample, quant, m_huff[1].m_quantization_table);
+            }
+            code_block(quant, &m_huff[1], &m_comp[2]);
         }
     } else if ((m_comp[0].m_h_samp == 2) && (m_comp[0].m_v_samp == 1)) {
         for (int x = 0; x < m_image.m_x_mcu; x+=m_image.m_mcu_w) {
             dctq_t *quant = m_image.get_dctq(x, y, 0);
-            load_block_8_8(sample, x, y, 0);
-            quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
-            code_block(sample, quant, &m_huff[0], 0);
+            if (quantize) {
+                load_block_8_8(sample, x, y, 0);
+                quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
+            }
+            code_block(quant, &m_huff[0], &m_comp[0]);
 
             quant = m_image.get_dctq(x+8, y, 0);
-            load_block_8_8(sample, x+8, y, 0);
-            quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
-            code_block(sample, quant, &m_huff[0], 0);
+            if (quantize) {
+                load_block_8_8(sample, x+8, y, 0);
+                quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
+            }
+            code_block(quant, &m_huff[0], &m_comp[0]);
 
-            quant = m_image.get_dctq(x, y, 1);
-            load_block_8_8(sample, x/2, y, 1);
-            quantize_pixels(sample, quant, m_huff[1].m_quantization_table);
-            code_block(sample, quant, &m_huff[1], 1);
+            quant = m_image.get_dctq(x/2, y, 1);
+            if (quantize) {
+                load_block_8_8(sample, x/2, y, 1);
+                quantize_pixels(sample, quant, m_huff[1].m_quantization_table);
+            }
+            code_block(quant, &m_huff[1], &m_comp[1]);
 
-            quant = m_image.get_dctq(x, y, 2);
-            load_block_8_8(sample, x/2, y, 2);
-            quantize_pixels(sample, quant, m_huff[1].m_quantization_table);
-            code_block(sample, quant, &m_huff[1], 2);
+            quant = m_image.get_dctq(x/2, y, 2);
+            if (quantize) {
+                load_block_8_8(sample, x/2, y, 2);
+                quantize_pixels(sample, quant, m_huff[1].m_quantization_table);
+            }
+            code_block(quant, &m_huff[1], &m_comp[2]);
         }
     } else if ((m_comp[0].m_h_samp == 2) && (m_comp[0].m_v_samp == 2)) {
         for (int x = 0; x < m_image.m_x_mcu; x+=m_image.m_mcu_w) {
             dctq_t *quant = m_image.get_dctq(x, y, 0);
-            load_block_8_8(sample, x,  y,  0);
-            quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
-            code_block(sample, quant, &m_huff[0], 0);
+            if (quantize) {
+                load_block_8_8(sample, x,  y,  0);
+                quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
+            }
+            code_block(quant, &m_huff[0], &m_comp[0]);
 
             quant = m_image.get_dctq(x+8, y, 0);
-            load_block_8_8(sample, x+8,y,  0);
-            quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
-            code_block(sample, quant, &m_huff[0], 0);
+            if (quantize) {
+                load_block_8_8(sample, x+8, y, 0);
+                quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
+            }
+            code_block(quant, &m_huff[0], &m_comp[0]);
 
             quant = m_image.get_dctq(x, y+8, 0);
-            load_block_8_8(sample, x,  y+8,0);
-            quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
-            code_block(sample, quant, &m_huff[0], 0);
+            if (quantize) {
+                load_block_8_8(sample, x,  y+8,0);
+                quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
+            }
+            code_block(quant, &m_huff[0], &m_comp[0]);
 
             quant = m_image.get_dctq(x+8, y+8, 0);
-            load_block_8_8(sample, x+8,y+8,0);
-            quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
-            code_block(sample, quant, &m_huff[0], 0);
+            if (quantize) {
+                load_block_8_8(sample, x+8,y+8,0);
+                quantize_pixels(sample, quant, m_huff[0].m_quantization_table);
+            }
+            code_block(quant, &m_huff[0], &m_comp[0]);
 
-            quant = m_image.get_dctq(x, y, 1);
-            load_block_8_8(sample, x/2, y/2, 1);
-            quantize_pixels(sample, quant, m_huff[1].m_quantization_table);
-            code_block(sample, quant, &m_huff[1], 1);
+            quant = m_image.get_dctq(x/2, y/2, 1);
+            if (quantize) {
+                load_block_8_8(sample, x/2, y/2, 1);
+                quantize_pixels(sample, quant, m_huff[1].m_quantization_table);
+            }
+            code_block(quant, &m_huff[1], &m_comp[1]);
 
-            quant = m_image.get_dctq(x, y, 2);
-            load_block_8_8(sample, x/2, y/2, 2);
-            quantize_pixels(sample, quant, m_huff[1].m_quantization_table);
-            code_block(sample, quant, &m_huff[1], 2);
+            quant = m_image.get_dctq(x/2, y/2, 2);
+            if (quantize) {
+                load_block_8_8(sample, x/2, y/2, 2);
+                quantize_pixels(sample, quant, m_huff[1].m_quantization_table);
+            }
+            code_block(quant, &m_huff[1], &m_comp[2]);
         }
     }
 }
