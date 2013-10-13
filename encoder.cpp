@@ -44,7 +44,6 @@ static int print_usage()
     printf("\nOptions supported in all modes:\n");
     printf("-glogfilename.txt: Append output to log file\n");
     printf("\nOptions supported in compression mode (the default):\n");
-    printf("-o: Enable optimized Huffman tables (slower, but smaller files)\n");
     printf("-luma: Output Y-only image\n");
     printf("-h1v1, -h2v1, -h2v2: Chroma subsampling (default is either Y-only or H2V2)\n");
     printf("-m: Test mem to mem compression (instead of mem to file)\n");
@@ -189,12 +188,10 @@ static int exhausive_compression_test(const char *pSrc_filename, bool use_jpgd)
 
     for (uint quality_factor = 12; quality_factor <= 100; quality_factor+=11) {
         for (uint subsampling = 0; subsampling <= jpge::H2V2; subsampling++) {
-            for (uint optimize_huffman_tables = 0; optimize_huffman_tables <= 1; optimize_huffman_tables++) {
                 // Fill in the compression parameter structure.
                 jpge::params params;
                 params.m_quality = quality_factor;
                 params.m_subsampling = static_cast<jpge::subsampling_t>(subsampling);
-                params.m_two_pass_flag = (optimize_huffman_tables != 0);
 
                 int comp_size = orig_buf_size;
                 if (!jpge::compress_image_to_jpeg_file_in_memory(pBuf, comp_size, width, height, req_comps, pImage_data, params)) {
@@ -221,8 +218,8 @@ static int exhausive_compression_test(const char *pSrc_filename, bool use_jpgd)
                 image_compare_results results;
                 image_compare(results, width, height, pImage_data, req_comps, pUncomp_image_data, uncomp_req_comps, (params.m_subsampling == jpge::Y_ONLY) || (actual_comps == 1) || (uncomp_actual_comps == 1));
                 double bpq = comp_size*results.mean/results.peak_snr/100;
-                log_printf("Q: %3u, S%u, O%u, Size: %7u, Error Max:% 5.0f, Mean:% 6.2f, RMSE:%6.2f, PSNR:%7.3f, BPQ:%6.0f\n",
-                           quality_factor, subsampling, optimize_huffman_tables, comp_size, results.max_err, results.mean, results.root_mean_squared, results.peak_snr, bpq);
+                log_printf("Q: %3u, S%u, Size: %7u, Error Max:% 5.0f, Mean:% 6.2f, RMSE:%6.2f, PSNR:%7.3f, BPQ:%6.0f\n",
+                           quality_factor, subsampling, comp_size, results.max_err, results.mean, results.root_mean_squared, results.peak_snr, bpq);
                 if (results.max_err > max_err) max_err = results.max_err;
                 if (results.peak_snr < lowest_psnr) lowest_psnr = results.peak_snr;
                 if (quality_factor < 99 && quality_factor > 35) {
@@ -241,16 +238,9 @@ static int exhausive_compression_test(const char *pSrc_filename, bool use_jpgd)
                         status = EXIT_FAILURE;
                         goto failure;
                     }
-                    if (optimize_huffman_tables) {
-                        if ((prev_results.max_err != results.max_err) || (prev_results.peak_snr != results.peak_snr)) {
-                            status = EXIT_FAILURE;
-                            goto failure;
-                        }
-                    }
                 }
 
                 prev_results = results;
-            }
         }
     }
 
@@ -272,7 +262,6 @@ int main(int arg_c, char *ppArgs[])
     // Parse command line.
     bool run_exhausive_test = false;
     bool test_memory_compression = false;
-    bool optimize_huffman_tables = false;
     int subsampling = -1;
     bool use_jpgd = true;
 
@@ -288,8 +277,7 @@ int main(int arg_c, char *ppArgs[])
         case 'm':
             test_memory_compression = true;
             break;
-        case 'o':
-            optimize_huffman_tables = true;
+        case 'o': // dropped option
             break;
         case 'l':
             if (strcasecmp(&ppArgs[arg_index][1], "luma") == 0)
@@ -362,7 +350,6 @@ int main(int arg_c, char *ppArgs[])
     jpge::params params;
     params.m_quality = quality_factor;
     params.m_subsampling = (subsampling < 0) ? ((actual_comps == 1) ? jpge::Y_ONLY : jpge::H2V2) : static_cast<jpge::subsampling_t>(subsampling);
-    params.m_two_pass_flag = optimize_huffman_tables;
 
     // Now create the JPEG file.
     if (test_memory_compression) {

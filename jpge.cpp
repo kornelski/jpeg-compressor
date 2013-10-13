@@ -591,15 +591,7 @@ bool jpeg_encoder::jpg_open(int p_x_res, int p_y_res, int src_channels)
     m_out_buf_left = JPGE_OUT_BUF_SIZE;
     m_pOut_buf = m_out_buf;
 
-    if (m_params.m_two_pass_flag) {
-        first_pass_init();
-    } else {
-        memcpy(m_huff[0].dc.m_bits, s_dc_lum_bits, 17);    memcpy(m_huff[0].dc.m_val, s_dc_lum_val, DC_LUM_CODES);
-        memcpy(m_huff[0].ac.m_bits, s_ac_lum_bits, 17);    memcpy(m_huff[0].ac.m_val, s_ac_lum_val, AC_LUM_CODES);
-        memcpy(m_huff[1].dc.m_bits, s_dc_chroma_bits, 17); memcpy(m_huff[1].dc.m_val, s_dc_chroma_val, DC_CHROMA_CODES);
-        memcpy(m_huff[1].ac.m_bits, s_ac_chroma_bits, 17); memcpy(m_huff[1].ac.m_val, s_ac_chroma_val, AC_CHROMA_CODES);
-        if (!second_pass_init()) return false;   // in effect, skip over the first pass
-    }
+    first_pass_init();
     return m_all_stream_writes_succeeded;
 }
 
@@ -769,7 +761,7 @@ void jpeg_encoder::code_block(dctq_t *coefficients, huffman_dcac *huff, componen
 void jpeg_encoder::process_mcu_row(int y)
 {
     dct_t sample[64];
-    bool quantize = !m_params.m_two_pass_flag || m_pass_num == 1;
+    bool quantize = m_pass_num == 1;
 
     if (m_num_components == 1) {
         for (int x = 0; x < m_image.m_x_mcu; x+=m_image.m_mcu_w) {
@@ -880,7 +872,7 @@ void jpeg_encoder::process_mcu_row(int y)
     }
 }
 
-bool jpeg_encoder::terminate_pass_one()
+void jpeg_encoder::terminate_pass_one()
 {
     m_huff[0].dc.optimize(DC_LUM_CODES);
     m_huff[0].ac.optimize(AC_LUM_CODES);
@@ -888,7 +880,6 @@ bool jpeg_encoder::terminate_pass_one()
         m_huff[1].dc.optimize(DC_CHROMA_CODES);
         m_huff[1].ac.optimize(AC_CHROMA_CODES);
     }
-    return second_pass_init();
 }
 
 bool jpeg_encoder::terminate_pass_two()
@@ -902,18 +893,18 @@ bool jpeg_encoder::terminate_pass_two()
 
 bool jpeg_encoder::process_end_of_image()
 {
-    for (uint pass_index = 0; pass_index < (m_params.m_two_pass_flag ? 2 : 1); pass_index++) {
-        for (int y = 0; y < m_image.m_y_mcu; y+= m_image.m_mcu_h) {
-            if (!m_all_stream_writes_succeeded) return false;
-            process_mcu_row(y);
-        }
-
-        if (m_pass_num == 1)
-            terminate_pass_one();
-        else
-            terminate_pass_two();
+    for (int y = 0; y < m_image.m_y_mcu; y+= m_image.m_mcu_h) {
+        if (!m_all_stream_writes_succeeded) return false;
+        process_mcu_row(y);
     }
-    return m_all_stream_writes_succeeded;
+    terminate_pass_one();
+
+    second_pass_init();
+    for (int y = 0; y < m_image.m_y_mcu; y+= m_image.m_mcu_h) {
+        if (!m_all_stream_writes_succeeded) return false;
+        process_mcu_row(y);
+    }
+    return terminate_pass_two();
 }
 
 void jpeg_encoder::load_mcu_Y(const uint8 *pSrc, int y)

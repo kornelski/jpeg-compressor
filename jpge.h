@@ -31,7 +31,7 @@ enum subsampling_t { Y_ONLY = 0, H1V1 = 1, H2V1 = 2, H2V2 = 3 };
 
 // JPEG compression parameters structure.
 struct params {
-    inline params() : m_quality(85), m_subsampling(H2V2), m_no_chroma_discrim_flag(false), m_two_pass_flag(false) { }
+    inline params() : m_quality(85), m_subsampling(H2V2), m_no_chroma_discrim_flag(false) { }
 
     inline bool check() const {
         if ((m_quality < 1) || (m_quality > 100)) return false;
@@ -52,8 +52,6 @@ struct params {
     // Disables CbCr discrimination - only intended for testing.
     // If true, the Y quantization table is also used for the CbCr channels.
     bool m_no_chroma_discrim_flag;
-
-    bool m_two_pass_flag;
 };
 
 // Writes JPEG image to a file.
@@ -197,7 +195,7 @@ private:
     void code_coefficients_pass_two(int16 *pSrc, huffman_dcac *huff, component *);
     void code_block(dctq_t *coefficients, huffman_dcac *huff, component *comp);
     void process_mcu_row(int y);
-    bool terminate_pass_one();
+    void terminate_pass_one();
     bool terminate_pass_two();
     void clear();
     void init();
