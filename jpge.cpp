@@ -667,20 +667,21 @@ void jpeg_encoder::load_block_16_8_8(dct_t *pDst, int x, int y, int c)
     }
 }
 
+inline static dctq_t round_to_zero(const dct_t j, const int32 quant) {
+    if (j < 0) {
+        dctq_t jtmp = -j + (quant >> 1);
+        return (jtmp < quant) ? 0 : static_cast<dctq_t>(-(jtmp / quant));
+    } else {
+        dctq_t jtmp = j + (quant >> 1);
+        return (jtmp < quant) ? 0 : static_cast<dctq_t>((jtmp / quant));
+    }
+}
+
 void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant)
 {
     dct(pSrc);
     for (int i = 0; i < 64; i++) {
-        dct_t j = pSrc[s_zag[i]];
-        dctq_t qj;
-        if (j < 0) {
-            j = -j + (quant[i] >> 1);
-            qj = (j < quant[i]) ? 0 : static_cast<dctq_t>(-(j / quant[i]));
-        } else {
-            j = j + (quant[i] >> 1);
-            qj = (j < quant[i]) ? 0 : static_cast<dctq_t>((j / quant[i]));
-        }
-        *pDst++ = qj;
+        pDst[i] = round_to_zero(pSrc[s_zag[i]], quant[i]);
     }
 }
 
