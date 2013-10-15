@@ -1,4 +1,3 @@
-// tga2jpg.cpp - jpge/jpgd example command line app.
 // Public domain, Rich Geldreich <richgel99@gmail.com>
 // Last updated May. 19, 2012
 
@@ -395,8 +394,6 @@ int main(int arg_c, char *ppArgs[])
     params.m_quality = quality_factor;
     params.m_subsampling = (subsampling < 0) ? ((actual_comps == 1) ? jpge::Y_ONLY : jpge::H2V2) : static_cast<jpge::subsampling_t>(subsampling);
     params.m_two_pass_flag = optimize_huffman_tables;
-
-    log_printf("Writing JPEG image to file: %s\n", pDst_filename);
 
     // Now create the JPEG file.
     if (test_memory_compression) {
