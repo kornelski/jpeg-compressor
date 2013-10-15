@@ -22,7 +22,6 @@ static int print_usage()
     printf("quality_factor: 1-100, higher=better (only needed in compression mode)\n");
     printf("\nDefault mode compresses source_file to dest_file. Alternate modes:\n");
     printf("-x: Exhaustive compression test (only needs source_file)\n");
-    printf("-d: Test jpgd.h. source_file must be JPEG, and dest_file must be .TGA\n");
     printf("\nOptions supported in all modes:\n");
     printf("-glogfilename.txt: Append output to log file\n");
     printf("\nOptions supported in compression mode (the default):\n");
@@ -30,7 +29,6 @@ static int print_usage()
     printf("-luma: Output Y-only image\n");
     printf("-h1v1, -h2v1, -h2v2: Chroma subsampling (default is either Y-only or H2V2)\n");
     printf("-m: Test mem to mem compression (instead of mem to file)\n");
-    printf("-wfilename.tga: Write decompressed image to filename.tga\n");
     printf("-s: Use stb_image.c to decompress JPEG image, instead of jpgd.cpp\n");
     printf("\nExample usages:\n");
     printf("Test compression: jpge orig.png comp.jpg 90\n");
@@ -248,36 +246,6 @@ failure:
     return status;
 }
 
-// Test JPEG file decompression using jpgd.h
-static int test_jpgd(const char *pSrc_filename, const char *pDst_filename)
-{
-    // Load the source JPEG image.
-    const int req_comps = 3; // request RGB image
-    int width = 0, height = 0, actual_comps = 0;
-
-    uint8 *pImage_data = jpgd::decompress_jpeg_image_from_file(pSrc_filename, &width, &height, &actual_comps, req_comps);
-
-
-    if (!pImage_data) {
-        log_printf("Failed loading JPEG file \"%s\"!\n", pSrc_filename);
-        return EXIT_FAILURE;
-    }
-
-    log_printf("Source JPEG file: \"%s\", image resolution: %ix%i, actual comps: %i\n", pSrc_filename, width, height, actual_comps);
-
-    if (!stbi_write_tga(pDst_filename, width, height, req_comps, pImage_data)) {
-        log_printf("Failed writing image to file \"%s\"!\n", pDst_filename);
-        free(pImage_data);
-        return EXIT_FAILURE;
-    }
-    log_printf("Wrote decompressed image to TGA file \"%s\"\n", pDst_filename);
-
-    log_printf("Success.\n");
-
-    free(pImage_data);
-    return EXIT_SUCCESS;
-}
-
 int main(int arg_c, char *ppArgs[])
 {
     printf("jpge/jpgd example app\n");
@@ -287,16 +255,11 @@ int main(int arg_c, char *ppArgs[])
     bool test_memory_compression = false;
     bool optimize_huffman_tables = false;
     int subsampling = -1;
-    char output_filename[256] = "";
     bool use_jpgd = true;
-    bool test_jpgd_decompression = false;
 
     int arg_index = 1;
     while ((arg_index < arg_c) && (ppArgs[arg_index][0] == '-')) {
         switch (tolower(ppArgs[arg_index][1])) {
-        case 'd':
-            test_jpgd_decompression = true;
-            break;
         case 'g':
             strcpy_s(s_log_filename, sizeof(s_log_filename), &ppArgs[arg_index][2]);
             break;
@@ -329,10 +292,6 @@ int main(int arg_c, char *ppArgs[])
                 return EXIT_FAILURE;
             }
             break;
-        case 'w': {
-            strcpy_s(output_filename, sizeof(output_filename), &ppArgs[arg_index][2]);
-            break;
-        }
         case 's': {
             use_jpgd = false;
             break;
@@ -352,15 +311,6 @@ int main(int arg_c, char *ppArgs[])
 
         const char *pSrc_filename = ppArgs[arg_index++];
         return exhausive_compression_test(pSrc_filename, use_jpgd);
-    } else if (test_jpgd_decompression) {
-        if ((arg_c - arg_index) < 2) {
-            log_printf("Not enough parameters (expected source and destination files)\n");
-            return print_usage();
-        }
-
-        const char *pSrc_filename = ppArgs[arg_index++];
-        const char *pDst_filename = ppArgs[arg_index++];
-        return test_jpgd(pSrc_filename, pDst_filename);
     }
 
     // Test jpge
@@ -452,10 +402,6 @@ int main(int arg_c, char *ppArgs[])
     }
 
     log_printf("Compression time: %3.3fms, Decompression time: %3.3fms\n", total_comp_time, total_uncomp_time);
-
-    // Write uncompressed image.
-    if (output_filename[0])
-        stbi_write_tga(output_filename, uncomp_width, uncomp_height, uncomp_req_comps, pUncomp_image_data);
 
     if ((uncomp_width != width) || (uncomp_height != height)) {
         log_printf("Loaded JPEG file has a different resolution than the original file!\n");
