@@ -1,0 +1,6 @@
+DerivedData/
+/encoder
+*.o
+/*.jpg
+/*.png
+*.tga
