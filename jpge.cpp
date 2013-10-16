@@ -601,18 +601,18 @@ bool jpeg_encoder::jpg_open(int p_x_res, int p_y_res)
     return m_all_stream_writes_succeeded;
 }
 
-void jpeg_encoder::load_block_8_8(dct_t *pDst, int x, int y, int c)
+void image::load_block(dct_t *pDst, int x, int y)
 {
     uint8 *pSrc;
     for (int i = 0; i < 8; i++, pDst += 8) {
-        pDst[0] = m_image[c].get_px(x+0, y+i) - 128.0;
-        pDst[1] = m_image[c].get_px(x+1, y+i) - 128.0;
-        pDst[2] = m_image[c].get_px(x+2, y+i) - 128.0;
-        pDst[3] = m_image[c].get_px(x+3, y+i) - 128.0;
-        pDst[4] = m_image[c].get_px(x+4, y+i) - 128.0;
-        pDst[5] = m_image[c].get_px(x+5, y+i) - 128.0;
-        pDst[6] = m_image[c].get_px(x+6, y+i) - 128.0;
-        pDst[7] = m_image[c].get_px(x+7, y+i) - 128.0;
+        pDst[0] = get_px(x+0, y+i) - 128.0;
+        pDst[1] = get_px(x+1, y+i) - 128.0;
+        pDst[2] = get_px(x+2, y+i) - 128.0;
+        pDst[3] = get_px(x+3, y+i) - 128.0;
+        pDst[4] = get_px(x+4, y+i) - 128.0;
+        pDst[5] = get_px(x+5, y+i) - 128.0;
+        pDst[6] = get_px(x+6, y+i) - 128.0;
+        pDst[7] = get_px(x+7, y+i) - 128.0;
     }
 }
 
@@ -816,7 +816,7 @@ bool jpeg_encoder::process_end_of_image()
         for (int y = 0; y < m_image[c].m_y; y+= 8) {
             for (int x = 0; x < m_image[c].m_x; x += 8) {
                 dct_t sample[64];
-                load_block_8_8(sample, x, y, c);
+                m_image[c].load_block(sample, x, y);
                 quantize_pixels(sample, m_image[c].get_dctq(x, y), m_huff[c > 0].m_quantization_table);
             }
         }

@@ -105,6 +105,7 @@ public:
     float get_px(int x, int y);
     void set_px(float px, int x, int y);
 
+    void load_block(dct_t *, int x, int y);
     dctq_t *get_dctq(int x, int y);
 
     void subsample(image &luma, int v_samp);
@@ -183,10 +184,6 @@ private:
     void reset_pass();
     bool second_pass_init();
     bool jpg_open(int p_x_res, int p_y_res);
-    void load_block_8_8_grey(dct_t *, int x, int y);
-    void load_block_8_8(dct_t *, int x, int y, int c);
-    void load_block_16_8(dct_t *, int x, int y, int c);
-    void load_block_16_8_8(dct_t *, int x, int y, int c);
     void quantize_pixels(dct_t *pSrc, int16 *pDst, const int32 *q);
     void flush_output_buffer();
     void put_bits(uint bits, uint len);
