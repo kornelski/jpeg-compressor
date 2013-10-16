@@ -193,7 +193,7 @@ private:
     void code_coefficients_pass_one(int16 *pSrc, huffman_dcac *huff, component *);
     void code_coefficients_pass_two(int16 *pSrc, huffman_dcac *huff, component *);
     void code_block(dctq_t *coefficients, huffman_dcac *huff, component *comp);
-    void process_mcu_row(int y);
+    void code_mcu_row(int y);
     void terminate_pass_one();
     bool terminate_pass_two();
     void clear();
