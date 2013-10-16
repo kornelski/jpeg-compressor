@@ -98,17 +98,14 @@ struct huffman_dcac {
 
 class image {
 public:
-    int m_x, m_y, m_bpp;
-    int m_x_mcu, m_y_mcu;
-    int m_mcus_per_row;
-    int m_mcu_w, m_mcu_h;
-    float *m_mcu_lines[3];
-    dctq_t *m_dctqs[3]; // quantized dcts
+    int m_x, m_y;
+    float *m_pixels;
+    dctq_t *m_dctqs; // quantized dcts
 
-    float get_px(int x, int y, int c);
-    void set_px(float px, int x, int y, int c);
+    float get_px(int x, int y);
+    void set_px(float px, int x, int y);
 
-    dctq_t *get_dctq(int x, int y, int c);
+    dctq_t *get_dctq(int x, int y);
 };
 
 // Lower level jpeg_encoder class - useful if more control is needed than the above helper functions.
@@ -121,9 +118,8 @@ public:
     // pStream: The stream object to use for writing compressed data.
     // params - Compression parameters structure, defined above.
     // width, height  - Image dimensions.
-    // channels - May be 1, or 3. 1 indicates grayscale, 3 indicates RGB source data.
     // Returns false on out of memory or if a stream write fails.
-    bool init(output_stream *pStream, int width, int height, int src_channels, const params &comp_params = params());
+    bool init(output_stream *pStream, int width, int height, const params &comp_params = params());
 
     const params &get_params() const {
         return m_params;
@@ -134,14 +130,15 @@ public:
 
     // Call this method with each source scanline.
     // width * src_channels bytes per scanline is expected (RGB or Y format).
+    // channels - May be 1, or 3. 1 indicates grayscale, 3 indicates RGB source data.
     // Returns false on out of memory or if a stream write fails.
-    bool read_image(const uint8 *data);
+    bool read_image(const uint8 *data, int width, int height, int bpp);
     bool process_scanline2(const uint8 *pScanline, int y);
 
     // You must call after all scanlines are processed to finish compression.
     bool process_end_of_image();
-    void load_mcu_Y(const uint8 *pSrc, int y);
-    void load_mcu_YCC(const uint8 *pSrc, int y);
+    void load_mcu_Y(const uint8 *pSrc, int width, int bpp, int y);
+    void load_mcu_YCC(const uint8 *pSrc, int width, int bpp, int y);
 
 private:
     jpeg_encoder(const jpeg_encoder &);
@@ -162,7 +159,9 @@ private:
     uint m_bits_in;
     uint8 m_pass_num;
     bool m_all_stream_writes_succeeded;
-    image m_image;
+    int m_mcu_w, m_mcu_h;
+    int m_x, m_y;
+    image m_image[3];
 
     void emit_byte(uint8 i);
     void emit_word(uint i);
@@ -178,7 +177,7 @@ private:
     void adjust_quant_table(int32 *dst, int32 *src);
     void first_pass_init();
     bool second_pass_init();
-    bool jpg_open(int p_x_res, int p_y_res, int src_channels);
+    bool jpg_open(int p_x_res, int p_y_res);
     void load_block_8_8_grey(dct_t *, int x, int y);
     void load_block_8_8(dct_t *, int x, int y, int c);
     void load_block_16_8(dct_t *, int x, int y, int c);
