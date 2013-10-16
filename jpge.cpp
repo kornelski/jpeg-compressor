@@ -81,11 +81,9 @@ template<class T> static void RGB_to_YCC(image &img, int y, const T *src)
 {
     for (int x = 0; x < img.m_x; x++) {
         const int r = src[x].r, g = src[x].g, b = src[x].b;
-        img.set_px((ycbcr) {
-              0 + (0.299     * r) + (0.587     * g) + (0.114     * b),
-            128 - (0.168736  * r) - (0.331264  * g) + (0.5       * b),
-            128 + (0.5       * r) - (0.418688  * g) - (0.081312  * b),
-        }, x, y);
+        img.set_px(  0 + (0.299     * r) + (0.587     * g) + (0.114     * b), x, y, 0);
+        img.set_px(128 - (0.168736  * r) - (0.331264  * g) + (0.5       * b), x, y, 1);
+        img.set_px(128 + (0.5       * r) - (0.418688  * g) - (0.081312  * b), x, y, 2);
     }
 }
 
@@ -99,26 +97,14 @@ template<class T> static void RGB_to_Y(image &img, int y, const T *pSrc)
 static void Y_to_YCC(image &img, int y, const uint8 *pSrc)
 {
     for(int x=0; x < img.m_x; x++) {
-        img.set_px((ycbcr) {pSrc[x], 128, 128}, x, y);
+        img.set_px(pSrc[x], x, y, 0);
+        img.set_px(128, x, y, 1);
+        img.set_px(128, x, y, 2);
     }
 }
 
 inline float image::get_px(int x, int y, int c) {
     return m_mcu_lines[c][y*m_x_mcu + x];
-}
-
-inline ycbcr image::get_px(int x, int y) {
-    return (ycbcr){
-        m_mcu_lines[0][y*m_x_mcu + x],
-        m_mcu_lines[1][y*m_x_mcu + x],
-        m_mcu_lines[2][y*m_x_mcu + x],
-    };
-}
-
-inline void image::set_px(ycbcr px, int x, int y) {
-    m_mcu_lines[0][y*m_x_mcu + x] = px.y;
-    m_mcu_lines[1][y*m_x_mcu + x] = px.cb;
-    m_mcu_lines[2][y*m_x_mcu + x] = px.cr;
 }
 
 inline void image::set_px(float px, int x, int y, int c) {
@@ -935,9 +921,11 @@ void jpeg_encoder::load_mcu_YCC(const uint8 *pSrc, int y)
         Y_to_YCC(m_image, y, pSrc);
 
     // Possibly duplicate pixels at end of scanline if not a multiple of 8 or 16
-    const ycbcr lastpx = m_image.get_px(m_image.m_x - 1, y);
-    for (int x = m_image.m_x; x < m_image.m_x_mcu; x++) {
-        m_image.set_px(lastpx, x, y);
+    for(int c=0; c < m_num_components; c++) {
+        const float lastpx = m_image.get_px(m_image.m_x - 1, y, c);
+        for (int x = m_image.m_x; x < m_image.m_x_mcu; x++) {
+            m_image.set_px(lastpx, x, y, c);
+        }
     }
 }
 
@@ -989,12 +977,10 @@ bool jpeg_encoder::read_image(const uint8 *image_data)
         }
     }
 
-    for (int y = m_image.m_y; y < m_image.m_y_mcu; y++) {
-        for(int x=0; x < m_image.m_x_mcu; x++) {
-            if (m_num_components == 1) {
-                m_image.set_px(m_image.get_px(x, y-1, 0), x, y, 0);
-            } else {
-                m_image.set_px(m_image.get_px(x, y-1), x, y);
+    for(int c=0; c < m_num_components; c++) {
+        for (int y = m_image.m_y; y < m_image.m_y_mcu; y++) {
+            for(int x=0; x < m_image.m_x_mcu; x++) {
+                m_image.set_px(m_image.get_px(x, y-1, c), x, y, c);
             }
         }
     }
