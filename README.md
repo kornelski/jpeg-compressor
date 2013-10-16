@@ -14,7 +14,7 @@ Experimental features:
 
 ## Usage
 
-Compile with
+[**Download** binary](https://github.com/pornel/jpeg-compressor/releases) or compile with
 
     make
 
