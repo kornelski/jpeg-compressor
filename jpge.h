@@ -106,6 +106,11 @@ public:
     void set_px(float px, int x, int y);
 
     dctq_t *get_dctq(int x, int y);
+
+    void subsample(image &luma, int v_samp);
+private:
+    dct_t blend_dual(int x, int y, image &);
+    dct_t blend_quad(int x, int y, image &);
 };
 
 // Lower level jpeg_encoder class - useful if more control is needed than the above helper functions.
@@ -193,8 +198,6 @@ private:
     bool terminate_pass_two();
     void clear();
     void init();
-    dct_t blend_dual(int x, int y, int c);
-    dct_t blend_quad(int x, int y, int c);
 };
 
 } // namespace jpge

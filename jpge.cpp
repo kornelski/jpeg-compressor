@@ -115,6 +115,27 @@ dctq_t *image::get_dctq(int x, int y) {
     return &m_dctqs[64*(y/8 * m_x/8 + x/8)];
 }
 
+void image::subsample(image &luma, int v_samp) {
+    const int half_x = m_x/2;
+    if (v_samp == 2) {
+        for(int y=0; y < m_y; y+=2) {
+            for(int x=0; x < m_x; x+=2) {
+                m_pixels[m_x/4*y + x/2] = blend_quad(x, y, luma);
+            }
+        }
+        m_x /= 2;
+        m_y /= 2;
+    } else {
+        for(int y=0; y < m_y; y++) {
+            for(int x=0; x < m_x; x+=2) {
+                m_pixels[m_x/2*y + x/2] = blend_dual(x, y, luma);
+            }
+        }
+        m_x /= 2;
+    }
+}
+
+
 // Forward DCT
 static void dct(dct_t *data)
 {
@@ -595,24 +616,24 @@ void jpeg_encoder::load_block_8_8(dct_t *pDst, int x, int y, int c)
     }
 }
 
-inline dct_t jpeg_encoder::blend_dual(int x, int y, int ch)
+inline dct_t image::blend_dual(int x, int y, image &luma)
 {
-    dct_t a = 129-abs(128 - m_image[0].get_px(x,  y));
-    dct_t b = 129-abs(128 - m_image[0].get_px(x+1,y));
-    return (m_image[ch].get_px(x,  y)*a
-          + m_image[ch].get_px(x+1,y)*b) / (a+b);
+    dct_t a = 129-abs(128 - luma.get_px(x,  y));
+    dct_t b = 129-abs(128 - luma.get_px(x+1,y));
+    return (get_px(x,  y)*a
+          + get_px(x+1,y)*b) / (a+b);
 }
 
-inline dct_t jpeg_encoder::blend_quad(int x, int y, int ch)
+inline dct_t image::blend_quad(int x, int y, image &luma)
 {
-    dct_t a = 129-abs(128 - m_image[0].get_px(x,  y  ));
-    dct_t b = 129-abs(128 - m_image[0].get_px(x+1,y  ));
-    dct_t c = 129-abs(128 - m_image[0].get_px(x,  y+1));
-    dct_t d = 129-abs(128 - m_image[0].get_px(x+1,y+1));
-    return  (m_image[ch].get_px(x,  y  )*a
-           + m_image[ch].get_px(x+1,y  )*b
-           + m_image[ch].get_px(x,  y+1)*c
-           + m_image[ch].get_px(x+1,y+1)*d) / (a+b+c+d);
+    dct_t a = 129-abs(128 - luma.get_px(x,  y  ));
+    dct_t b = 129-abs(128 - luma.get_px(x+1,y  ));
+    dct_t c = 129-abs(128 - luma.get_px(x,  y+1));
+    dct_t d = 129-abs(128 - luma.get_px(x+1,y+1));
+    return  (get_px(x,  y  )*a
+           + get_px(x+1,y  )*b
+           + get_px(x,  y+1)*c
+           + get_px(x+1,y+1)*d) / (a+b+c+d);
 }
 
 inline static dctq_t round_to_zero(const dct_t j, const int32 quant) {
@@ -982,23 +1003,9 @@ bool jpeg_encoder::read_image(const uint8 *image_data, int width, int height, in
         }
     }
 
-    // subsampling
-    if (m_comp[0].m_h_samp == 2 && m_comp[0].m_v_samp == 1) {
+    if (m_comp[0].m_h_samp == 2) {
         for(int c=1; c < m_num_components; c++) {
-            for(int y=0; y < m_image[c].m_y; y++) {
-                for(int x=0; x < m_image[c].m_x; x+=2) {
-                    m_image[c].set_px(blend_dual(x, y, c), x/2, y);
-                }
-            }
-        }
-    }
-    if (m_comp[0].m_h_samp == 2 && m_comp[0].m_v_samp == 2) {
-        for(int c=1; c < m_num_components; c++) {
-            for(int y=0; y < m_image[c].m_y; y+=2) {
-                for(int x=0; x < m_image[c].m_x; x+=2) {
-                    m_image[c].set_px(blend_quad(x, y, c), x/2, y/2);
-                }
-            }
+            m_image[c].subsample(m_image[0], m_comp[0].m_v_samp);
         }
     }
 
