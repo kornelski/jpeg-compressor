@@ -527,12 +527,11 @@ void jpeg_encoder::compute_quant_table(int32 *pDst, int16 *pSrc)
 }
 
 // Higher-level methods.
-void jpeg_encoder::first_pass_init()
+void jpeg_encoder::reset_pass()
 {
     m_bit_buffer = 0; m_bits_in = 0;
     m_comp[0].m_last_dc_val=0; m_comp[1].m_last_dc_val=0; m_comp[2].m_last_dc_val=0;
     m_mcu_y_ofs = 0;
-    m_pass_num = 1;
 }
 
 bool jpeg_encoder::second_pass_init()
@@ -543,7 +542,7 @@ bool jpeg_encoder::second_pass_init()
         m_huff[1].ac.compute();
         m_huff[1].dc.compute();
     }
-    first_pass_init();
+    reset_pass();
     emit_markers();
     m_pass_num = 2;
     return true;
@@ -597,7 +596,8 @@ bool jpeg_encoder::jpg_open(int p_x_res, int p_y_res)
     m_out_buf_left = JPGE_OUT_BUF_SIZE;
     m_pOut_buf = m_out_buf;
 
-    first_pass_init();
+    m_pass_num = 1;
+    reset_pass();
     return m_all_stream_writes_succeeded;
 }
 

@@ -180,7 +180,7 @@ private:
     void emit_markers();
     void compute_quant_table(int32 *dst, int16 *src);
     void adjust_quant_table(int32 *dst, int32 *src);
-    void first_pass_init();
+    void reset_pass();
     bool second_pass_init();
     bool jpg_open(int p_x_res, int p_y_res);
     void load_block_8_8_grey(dct_t *, int x, int y);
