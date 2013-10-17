@@ -584,10 +584,7 @@ bool jpeg_encoder::jpg_open(int p_x_res, int p_y_res)
     m_image[2].m_x = m_image[1].m_x = m_image[0].m_x = (m_x + m_mcu_w - 1) & (~(m_mcu_w - 1));
     m_image[2].m_y = m_image[1].m_y = m_image[0].m_y = (m_y + m_mcu_h - 1) & (~(m_mcu_h - 1));
 
-    for(int c=0; c < m_num_components; c++) {
-        m_image[c].m_pixels = static_cast<float *>(jpge_malloc(m_image[c].m_x * sizeof(float) * m_image[c].m_y));
-        m_image[c].m_dctqs = static_cast<dctq_t *>(jpge_malloc(m_image[c].m_x * sizeof(dctq_t) * m_image[c].m_y));
-    }
+    for(int c=0; c < m_num_components; c++) m_image[c].init();
 
     clear_obj(m_huff);
     compute_quant_table(m_huff[0].m_quantization_table, s_std_lum_quant);
@@ -599,6 +596,16 @@ bool jpeg_encoder::jpg_open(int p_x_res, int p_y_res)
     m_pass_num = 1;
     reset_pass();
     return m_all_stream_writes_succeeded;
+}
+
+void image::init() {
+    m_pixels = static_cast<float *>(jpge_malloc(m_x * sizeof(float) * m_y));
+    m_dctqs = static_cast<dctq_t *>(jpge_malloc(m_x * sizeof(dctq_t) * m_y));
+}
+
+void image::deinit() {
+    jpge_free(m_pixels); m_pixels = NULL;
+    jpge_free(m_dctqs); m_dctqs = NULL;
 }
 
 void image::load_block(dct_t *pDst, int x, int y)
@@ -864,9 +871,6 @@ void jpeg_encoder::load_mcu_YCC(const uint8 *pSrc, int width, int bpp, int y)
 
 void jpeg_encoder::clear()
 {
-    m_image[1].m_pixels = NULL;
-    m_image[1].m_pixels = NULL;
-    m_image[2].m_pixels = NULL;
     m_pass_num = 0;
     m_num_components=0;
     m_all_stream_writes_succeeded = true;
@@ -893,10 +897,7 @@ bool jpeg_encoder::init(output_stream *pStream, int width, int height, const par
 
 void jpeg_encoder::deinit()
 {
-    for(int c=0; c < m_num_components; c++) {
-        jpge_free(m_image[c].m_pixels);
-        jpge_free(m_image[c].m_dctqs);
-    }
+    for(int c=0; c < m_num_components; c++) m_image[c].deinit();
     clear();
 }
 

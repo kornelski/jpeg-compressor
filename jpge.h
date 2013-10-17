@@ -98,9 +98,10 @@ struct huffman_dcac {
 
 class image {
 public:
+    void init();
+    void deinit();
+
     int m_x, m_y;
-    float *m_pixels;
-    dctq_t *m_dctqs; // quantized dcts
 
     float get_px(int x, int y);
     void set_px(float px, int x, int y);
@@ -109,7 +110,11 @@ public:
     dctq_t *get_dctq(int x, int y);
 
     void subsample(image &luma, int v_samp);
+
 private:
+    float *m_pixels;
+    dctq_t *m_dctqs; // quantized dcts
+
     dct_t blend_dual(int x, int y, image &);
     dct_t blend_quad(int x, int y, image &);
 };
