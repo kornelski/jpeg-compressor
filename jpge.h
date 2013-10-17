@@ -187,6 +187,7 @@ private:
     void quantize_pixels(dct_t *pSrc, int16 *pDst, const int32 *q);
     void flush_output_buffer();
     void put_bits(uint bits, uint len);
+    void put_signed_int_bits(int num, uint len);
     void code_coefficients_pass_one(int16 *pSrc, huffman_dcac *huff, component *);
     void code_coefficients_pass_two(int16 *pSrc, huffman_dcac *huff, component *);
     void code_block(dctq_t *coefficients, huffman_dcac *huff, component *comp);

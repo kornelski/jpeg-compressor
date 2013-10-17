@@ -662,6 +662,21 @@ void jpeg_encoder::flush_output_buffer()
     m_out_buf_left = JPGE_OUT_BUF_SIZE;
 }
 
+inline static uint bit_count(int temp1) {
+    if (temp1 < 0) temp1 = -temp1;
+
+    uint nbits = 0;
+    while (temp1) {
+        nbits++; temp1 >>= 1;
+    }
+    return nbits;
+}
+
+void jpeg_encoder::put_signed_int_bits(int num, uint len) {
+    if (num < 0) num--;
+    put_bits(num & ((1 << len) - 1), len);
+}
+
 void jpeg_encoder::put_bits(uint bits, uint len)
 {
     m_bit_buffer |= ((uint32)bits << (24 - (m_bits_in += len)));
@@ -677,79 +692,54 @@ void jpeg_encoder::put_bits(uint bits, uint len)
 
 void jpeg_encoder::code_coefficients_pass_one(dctq_t *src, huffman_dcac *huff, component *comp)
 {
-    int i, run_len, nbits, temp1;
-    uint32 *dc_count = huff->dc.m_count, *ac_count = huff->ac.m_count;
-
-    temp1 = src[0] - comp->m_last_dc_val;
+    huff->dc.m_count[bit_count(src[0] - comp->m_last_dc_val)]++;
     comp->m_last_dc_val = src[0];
-    if (temp1 < 0) temp1 = -temp1;
 
-    nbits = 0;
-    while (temp1) {
-        nbits++; temp1 >>= 1;
-    }
-
-    dc_count[nbits]++;
-    for (run_len = 0, i = 1; i < 64; i++) {
-        if ((temp1 = src[i]) == 0)
+    int run_len = 0;
+    for (int i = 1; i < 64; i++) {
+        if (src[i] == 0)
             run_len++;
         else {
             while (run_len >= 16) {
-                ac_count[0xF0]++;
+                huff->ac.m_count[0xF0]++;
                 run_len -= 16;
             }
-            if (temp1 < 0) temp1 = -temp1;
-            nbits = 1;
-            while (temp1 >>= 1) nbits++;
-            ac_count[(run_len << 4) + nbits]++;
+            huff->ac.m_count[(run_len << 4) + bit_count(src[i])]++;
             run_len = 0;
         }
     }
-    if (run_len) ac_count[0]++;
+    if (run_len) huff->ac.m_count[0]++;
 }
 
-void jpeg_encoder::code_coefficients_pass_two(dctq_t *pSrc, huffman_dcac *huff, component *comp)
+void jpeg_encoder::code_coefficients_pass_two(dctq_t *src, huffman_dcac *huff, component *comp)
 {
-    int i, j, run_len, nbits, temp1, temp2;
+    const int dc_delta = src[0] - comp->m_last_dc_val;
+    comp->m_last_dc_val = src[0];
 
-    temp1 = temp2 = pSrc[0] - comp->m_last_dc_val;
-    comp->m_last_dc_val = pSrc[0];
-
-    if (temp1 < 0) {
-        temp1 = -temp1; temp2--;
-    }
-
-    nbits = 0;
-    while (temp1) {
-        nbits++; temp1 >>= 1;
-    }
+    const uint nbits = bit_count(dc_delta);
 
     put_bits(huff->dc.m_codes[nbits], huff->dc.m_code_sizes[nbits]);
-    if (nbits) put_bits(temp2 & ((1 << nbits) - 1), nbits);
+    put_signed_int_bits(dc_delta, nbits);
 
-    for (run_len = 0, i = 1; i < 64; i++) {
-        if ((temp1 = pSrc[i]) == 0)
+    int run_len = 0;
+    for (int i = 1; i < 64; i++) {
+        const dctq_t ac_val = src[i];
+        if (ac_val == 0)
             run_len++;
         else {
             while (run_len >= 16) {
                 put_bits(huff->ac.m_codes[0xF0], huff->ac.m_code_sizes[0xF0]);
                 run_len -= 16;
             }
-            if ((temp2 = temp1) < 0) {
-                temp1 = -temp1;
-                temp2--;
-            }
-            nbits = 1;
-            while (temp1 >>= 1)
-                nbits++;
-            j = (run_len << 4) + nbits;
-            put_bits(huff->ac.m_codes[j], huff->ac.m_code_sizes[j]);
-            put_bits(temp2 & ((1 << nbits) - 1), nbits);
+            const uint nbits = bit_count(ac_val);
+            const int code = (run_len << 4) + nbits;
+
+            put_bits(huff->ac.m_codes[code], huff->ac.m_code_sizes[code]);
+            put_signed_int_bits(ac_val, nbits);
             run_len = 0;
         }
     }
-    if (run_len)
-        put_bits(huff->ac.m_codes[0], huff->ac.m_code_sizes[0]);
+    if (run_len) put_bits(huff->ac.m_codes[0], huff->ac.m_code_sizes[0]);
 }
 
 void jpeg_encoder::code_block(dctq_t *coefficients, huffman_dcac *huff, component *comp)
