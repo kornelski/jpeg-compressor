@@ -107,6 +107,8 @@ public:
     void set_px(float px, int x, int y);
 
     void load_block(dct_t *, int x, int y);
+    void save_block(dct_t *pSrc, int x, int y);
+
     dctq_t *get_dctq(int x, int y);
 
     void subsample(image &luma, int v_samp);

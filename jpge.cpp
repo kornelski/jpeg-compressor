@@ -587,7 +587,6 @@ void image::deinit() {
 
 void image::load_block(dct_t *pDst, int x, int y)
 {
-    uint8 *pSrc;
     for (int i = 0; i < 8; i++, pDst += 8) {
         pDst[0] = get_px(x+0, y+i);
         pDst[1] = get_px(x+1, y+i);
@@ -597,6 +596,20 @@ void image::load_block(dct_t *pDst, int x, int y)
         pDst[5] = get_px(x+5, y+i);
         pDst[6] = get_px(x+6, y+i);
         pDst[7] = get_px(x+7, y+i);
+    }
+}
+
+void image::save_block(dct_t *pSrc, int x, int y)
+{
+    for (int i = 0; i < 8; i++, pSrc += 8) {
+        set_px(pSrc[0], x+0, y+i);
+        set_px(pSrc[1], x+1, y+i);
+        set_px(pSrc[2], x+2, y+i);
+        set_px(pSrc[3], x+3, y+i);
+        set_px(pSrc[4], x+4, y+i);
+        set_px(pSrc[5], x+5, y+i);
+        set_px(pSrc[6], x+6, y+i);
+        set_px(pSrc[7], x+7, y+i);
     }
 }
 
