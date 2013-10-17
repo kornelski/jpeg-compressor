@@ -98,6 +98,9 @@ struct huffman_dcac {
 
 class image {
 public:
+    image() {};
+    image(image &copy);
+
     void init();
     void deinit();
 
@@ -107,8 +110,11 @@ public:
     void set_px(float px, int x, int y);
 
     void load_block(dct_t *, int x, int y);
+    void save_block(dct_t *pSrc, int x, int y);
+
     dctq_t *get_dctq(int x, int y);
 
+    void blur(image &dest);
     void subsample(image &luma, int v_samp);
 
 private:

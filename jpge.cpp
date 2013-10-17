@@ -608,9 +608,18 @@ void image::deinit() {
     jpge_free(m_dctqs); m_dctqs = NULL;
 }
 
+
+image::image(image &source) {
+    m_x = source.m_x;
+    m_y = source.m_y;
+
+    init();
+    memcpy(m_pixels, source.m_pixels, m_x * sizeof(float) * m_y);
+    memcpy(m_dctqs, source.m_dctqs, m_x * sizeof(dctq_t) * m_y);
+}
+
 void image::load_block(dct_t *pDst, int x, int y)
 {
-    uint8 *pSrc;
     for (int i = 0; i < 8; i++, pDst += 8) {
         pDst[0] = get_px(x+0, y+i);
         pDst[1] = get_px(x+1, y+i);
@@ -620,6 +629,20 @@ void image::load_block(dct_t *pDst, int x, int y)
         pDst[5] = get_px(x+5, y+i);
         pDst[6] = get_px(x+6, y+i);
         pDst[7] = get_px(x+7, y+i);
+    }
+}
+
+void image::save_block(dct_t *pSrc, int x, int y)
+{
+    for (int i = 0; i < 8; i++, pSrc += 8) {
+        set_px(pSrc[0], x+0, y+i);
+        set_px(pSrc[1], x+1, y+i);
+        set_px(pSrc[2], x+2, y+i);
+        set_px(pSrc[3], x+3, y+i);
+        set_px(pSrc[4], x+4, y+i);
+        set_px(pSrc[5], x+5, y+i);
+        set_px(pSrc[6], x+6, y+i);
+        set_px(pSrc[7], x+7, y+i);
     }
 }
 
@@ -807,16 +830,83 @@ bool jpeg_encoder::terminate_pass_two()
     return m_all_stream_writes_succeeded;
 }
 
+void image::blur(image &dest) {
+    for (int y = 1; y < m_y-1; y++) {
+        for (int x = 1; x < m_x-1; x++) {
+            dest.set_px((get_px(x,y)+get_px(x-1,y)+get_px(x,y-1)+get_px(x+1,y)+get_px(x,y+1))/5.f,x,y);
+        }
+    }
+}
+
 bool jpeg_encoder::process_end_of_image()
 {
     for(int c=0; c < m_num_components; c++) {
+        image copy(m_image[c]);
         for (int y = 0; y < m_image[c].m_y; y+= 8) {
             for (int x = 0; x < m_image[c].m_x; x += 8) {
                 dct_t sample[64];
-                m_image[c].load_block(sample, x, y);
-                quantize_pixels(sample, m_image[c].get_dctq(x, y), m_huff[c > 0].m_quantization_table);
+                copy.load_block(sample, x, y);
+                dct_t sum=0;
+                for(int i=0; i < 64; i++) sum += sample[i];
+                sum /= 64.0;
+                dct_t realavg = sum;
+                sum = round_to_zero(sum*8.0, m_huff[c > 0].m_quantization_table[0]) * m_huff[c > 0].m_quantization_table[0] / 8.0;
+                for(int i=0; i < 64; i++) sample[i] = sum - realavg;
+                copy.save_block(sample, x, y);
             }
         }
+
+        image tmp(copy);
+
+        for(int z=0; z < 120; z++) {
+            // blur changes brightness
+            copy.blur(tmp);
+            tmp.blur(copy);
+            for (int y = 0; y < m_image[c].m_y; y+= 8) {
+                for (int x = 0; x < m_image[c].m_x; x += 8) {
+                    dct_t sample[64];
+                    dct_t blur[64];
+                    m_image[c].load_block(sample, x, y);
+                    tmp.load_block(blur, x, y);
+                    dct_t sum=0, bsum=0;
+                    for(int i=0; i < 64; i++) sum += sample[i];
+                    for(int i=0; i < 64; i++) bsum += blur[i];
+                    sum /= 64.0;
+                    dct_t realavg = sum;
+                    bsum /= 64.0;
+                    sum = round_to_zero(sum*8.0, m_huff[c > 0].m_quantization_table[0]) * m_huff[c > 0].m_quantization_table[0] / 8.0;
+                    // find right brighnes and re-add it to the middle of the block
+                    for(int j=1; j < 7; j++)
+                        for(int k=1; k < 7; k++) blur[j*8+k] += (sum - realavg - bsum)*(64.0/(16+36.0));
+                    for(int j=2; j < 5; j++)
+                        for(int k=2; k < 5; k++) blur[j*8+k] += (sum - realavg - bsum)*(64.0/(16+36.0));
+                    copy.save_block(blur, x, y);
+                }
+            }
+        }
+
+        for (int y = 0; y < m_image[c].m_y; y+= 8) {
+            for (int x = 0; x < m_image[c].m_x; x += 8) {
+                dct_t orig[64];
+                dct_t blur[64];
+                m_image[c].load_block(orig, x, y);
+                tmp.load_block(blur, x, y);
+                dct_t sum=0;
+                for(int i=0; i < 64; i++) sum += orig[i];
+                sum /= 64.0;
+                dct_t realavg = sum;
+                dctq_t quant = round_to_zero(sum*8.0, m_huff[c > 0].m_quantization_table[0]);
+                sum = quant * m_huff[c > 0].m_quantization_table[0] / 8.0;
+
+                for(int i=0; i < 64; i++) orig[i] = orig[i] - realavg + sum + (blur[i]);
+                dctq_t *q = m_image[c].get_dctq(x, y);
+                quantize_pixels(orig, q, m_huff[c > 0].m_quantization_table);
+                q[0] = quant;
+                // m_image[c].save_block(orig, x,y);
+            }
+        }
+        copy.deinit();
+        tmp.deinit();
     }
 
     for (int y = 0; y < m_y; y+= m_mcu_h) {
