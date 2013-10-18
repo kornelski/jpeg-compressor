@@ -81,25 +81,25 @@ template<class T> static void RGB_to_YCC(image *img, const T *src, int width, in
 {
     for (int x = 0; x < width; x++) {
         const int r = src[x].r, g = src[x].g, b = src[x].b;
-        img[0].set_px(  0 + (0.299     * r) + (0.587     * g) + (0.114     * b), x, y);
-        img[1].set_px(128 - (0.168736  * r) - (0.331264  * g) + (0.5       * b), x, y);
-        img[2].set_px(128 + (0.5       * r) - (0.418688  * g) - (0.081312  * b), x, y);
+        img[0].set_px( (0.299     * r) + (0.587     * g) + (0.114     * b)-128.0, x, y);
+        img[1].set_px(-(0.168736  * r) - (0.331264  * g) + (0.5       * b), x, y);
+        img[2].set_px( (0.5       * r) - (0.418688  * g) - (0.081312  * b), x, y);
     }
 }
 
 template<class T> static void RGB_to_Y(image &img, const T *pSrc, int width, int y)
 {
     for (int x=0; x < width; x++) {
-        img.set_px((0.299 * pSrc[x].r) + (0.587 * pSrc[x].g) + (0.114 * pSrc[x].b), x, y);
+        img.set_px((pSrc[x].r*0.299) + (pSrc[x].g*0.587) + (pSrc[x].b*0.114)-128.0, x, y);
     }
 }
 
 static void Y_to_YCC(image *img, const uint8 *pSrc, int width, int y)
 {
     for(int x=0; x < width; x++) {
-        img[0].set_px(pSrc[x], x, y);
-        img[1].set_px(128, x, y);
-        img[2].set_px(128, x, y);
+        img[0].set_px(pSrc[x]-128.0, x, y);
+        img[1].set_px(0, x, y);
+        img[2].set_px(0, x, y);
     }
 }
 
@@ -605,31 +605,31 @@ void image::load_block(dct_t *pDst, int x, int y)
 {
     uint8 *pSrc;
     for (int i = 0; i < 8; i++, pDst += 8) {
-        pDst[0] = get_px(x+0, y+i) - 128.0;
-        pDst[1] = get_px(x+1, y+i) - 128.0;
-        pDst[2] = get_px(x+2, y+i) - 128.0;
-        pDst[3] = get_px(x+3, y+i) - 128.0;
-        pDst[4] = get_px(x+4, y+i) - 128.0;
-        pDst[5] = get_px(x+5, y+i) - 128.0;
-        pDst[6] = get_px(x+6, y+i) - 128.0;
-        pDst[7] = get_px(x+7, y+i) - 128.0;
+        pDst[0] = get_px(x+0, y+i);
+        pDst[1] = get_px(x+1, y+i);
+        pDst[2] = get_px(x+2, y+i);
+        pDst[3] = get_px(x+3, y+i);
+        pDst[4] = get_px(x+4, y+i);
+        pDst[5] = get_px(x+5, y+i);
+        pDst[6] = get_px(x+6, y+i);
+        pDst[7] = get_px(x+7, y+i);
     }
 }
 
 inline dct_t image::blend_dual(int x, int y, image &luma)
 {
-    dct_t a = 129-abs(128 - luma.get_px(x,  y));
-    dct_t b = 129-abs(128 - luma.get_px(x+1,y));
+    dct_t a = 129-abs(luma.get_px(x,  y));
+    dct_t b = 129-abs(luma.get_px(x+1,y));
     return (get_px(x,  y)*a
           + get_px(x+1,y)*b) / (a+b);
 }
 
 inline dct_t image::blend_quad(int x, int y, image &luma)
 {
-    dct_t a = 129-abs(128 - luma.get_px(x,  y  ));
-    dct_t b = 129-abs(128 - luma.get_px(x+1,y  ));
-    dct_t c = 129-abs(128 - luma.get_px(x,  y+1));
-    dct_t d = 129-abs(128 - luma.get_px(x+1,y+1));
+    dct_t a = 129-abs(luma.get_px(x,  y  ));
+    dct_t b = 129-abs(luma.get_px(x+1,y  ));
+    dct_t c = 129-abs(luma.get_px(x,  y+1));
+    dct_t d = 129-abs(luma.get_px(x+1,y+1));
     return  (get_px(x,  y  )*a
            + get_px(x+1,y  )*b
            + get_px(x,  y+1)*c
@@ -834,7 +834,7 @@ void jpeg_encoder::load_mcu_Y(const uint8 *pSrc, int width, int bpp, int y)
         RGB_to_Y(m_image[0], reinterpret_cast<const rgb *>(pSrc), width, y);
     else
         for(int x=0; x < width; x++) {
-            m_image[0].set_px(pSrc[x], x, y);
+            m_image[0].set_px(pSrc[x]-128.0, x, y);
         }
 
     // Possibly duplicate pixels at end of scanline if not a multiple of 8 or 16
@@ -933,8 +933,8 @@ bool jpeg_encoder::read_image(const uint8 *image_data, int width, int height, in
             for(int y=0; y < m_image[c].m_y; y++) {
                 for(int x=0; x < m_image[c].m_x; x++) {
                     float px = m_image[c].get_px(x,y);
-                    if (px < 1.0) px = -m_huff[0].m_quantization_table[0];
-                    else if (px > 254) px = 255+m_huff[0].m_quantization_table[0];
+                    if (px <= -128.f) px -= m_huff[0].m_quantization_table[0];
+                    else if (px >= 128.f) px += m_huff[0].m_quantization_table[0];
                     m_image[c].set_px(px, x, y);
                 }
             }
