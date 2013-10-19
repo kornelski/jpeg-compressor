@@ -193,9 +193,7 @@ private:
     void flush_output_buffer();
     void put_bits(uint bits, uint len);
     void put_signed_int_bits(int num, uint len);
-    void code_coefficients_pass_one(int16 *pSrc, huffman_dcac *huff, component *);
-    void code_coefficients_pass_two(int16 *pSrc, huffman_dcac *huff, component *);
-    void code_block(dctq_t *coefficients, huffman_dcac *huff, component *comp);
+    void code_block(dctq_t *coefficients, huffman_dcac *huff, component *comp, bool putbits);
     void code_mcu_row(int y);
     void terminate_pass_one();
     bool terminate_pass_two();

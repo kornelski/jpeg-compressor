@@ -697,36 +697,19 @@ void jpeg_encoder::put_bits(uint bits, uint len)
     }
 }
 
-void jpeg_encoder::code_coefficients_pass_one(dctq_t *src, huffman_dcac *huff, component *comp)
-{
-    huff->dc.m_count[bit_count(src[0] - comp->m_last_dc_val)]++;
-    comp->m_last_dc_val = src[0];
-
-    int run_len = 0;
-    for (int i = 1; i < 64; i++) {
-        if (src[i] == 0)
-            run_len++;
-        else {
-            while (run_len >= 16) {
-                huff->ac.m_count[0xF0]++;
-                run_len -= 16;
-            }
-            huff->ac.m_count[(run_len << 4) + bit_count(src[i])]++;
-            run_len = 0;
-        }
-    }
-    if (run_len) huff->ac.m_count[0]++;
-}
-
-void jpeg_encoder::code_coefficients_pass_two(dctq_t *src, huffman_dcac *huff, component *comp)
+void jpeg_encoder::code_block(dctq_t *src, huffman_dcac *huff, component *comp, bool write)
 {
     const int dc_delta = src[0] - comp->m_last_dc_val;
     comp->m_last_dc_val = src[0];
 
     const uint nbits = bit_count(dc_delta);
 
-    put_bits(huff->dc.m_codes[nbits], huff->dc.m_code_sizes[nbits]);
-    put_signed_int_bits(dc_delta, nbits);
+    if (write) {
+        put_bits(huff->dc.m_codes[nbits], huff->dc.m_code_sizes[nbits]);
+        put_signed_int_bits(dc_delta, nbits);
+    } else {
+        huff->dc.m_count[nbits]++;
+    }
 
     int run_len = 0;
     for (int i = 1; i < 64; i++) {
@@ -735,55 +718,62 @@ void jpeg_encoder::code_coefficients_pass_two(dctq_t *src, huffman_dcac *huff, c
             run_len++;
         else {
             while (run_len >= 16) {
-                put_bits(huff->ac.m_codes[0xF0], huff->ac.m_code_sizes[0xF0]);
+                if (write) {
+                    put_bits(huff->ac.m_codes[0xF0], huff->ac.m_code_sizes[0xF0]);
+                } else {
+                    huff->ac.m_count[0xF0]++;
+                }
                 run_len -= 16;
             }
             const uint nbits = bit_count(ac_val);
             const int code = (run_len << 4) + nbits;
 
-            put_bits(huff->ac.m_codes[code], huff->ac.m_code_sizes[code]);
-            put_signed_int_bits(ac_val, nbits);
+            if (write) {
+                put_bits(huff->ac.m_codes[code], huff->ac.m_code_sizes[code]);
+                put_signed_int_bits(ac_val, nbits);
+            } else {
+                huff->ac.m_count[code]++;
+            }
             run_len = 0;
         }
     }
-    if (run_len) put_bits(huff->ac.m_codes[0], huff->ac.m_code_sizes[0]);
-}
-
-void jpeg_encoder::code_block(dctq_t *coefficients, huffman_dcac *huff, component *comp)
-{
-    if (m_pass_num == 1)
-        code_coefficients_pass_one(coefficients, huff, comp);
-    else
-        code_coefficients_pass_two(coefficients, huff, comp);
+    if (run_len) {
+        if (write) {
+            put_bits(huff->ac.m_codes[0], huff->ac.m_code_sizes[0]);
+        } else {
+            huff->ac.m_count[0]++;
+        }
+    }
 }
 
 void jpeg_encoder::code_mcu_row(int y)
 {
+    bool write = m_pass_num == 2;
     if (m_num_components == 1) {
         for (int x = 0; x < m_x; x += m_mcu_w) {
-            code_block(m_image[0].get_dctq(x, y), &m_huff[0], &m_comp[0]);
+            code_block(m_image[0].get_dctq(x, y), &m_huff[0], &m_comp[0], write);
         }
     } else if ((m_comp[0].m_h_samp == 1) && (m_comp[0].m_v_samp == 1)) {
         for (int x = 0; x < m_x; x += m_mcu_w) {
-            code_block(m_image[0].get_dctq(x, y), &m_huff[0], &m_comp[0]);
-            code_block(m_image[1].get_dctq(x, y), &m_huff[1], &m_comp[1]);
-            code_block(m_image[2].get_dctq(x, y), &m_huff[1], &m_comp[2]);
+            code_block(m_image[0].get_dctq(x, y), &m_huff[0], &m_comp[0], write);
+            code_block(m_image[1].get_dctq(x, y), &m_huff[1], &m_comp[1], write);
+            code_block(m_image[2].get_dctq(x, y), &m_huff[1], &m_comp[2], write);
         }
     } else if ((m_comp[0].m_h_samp == 2) && (m_comp[0].m_v_samp == 1)) {
         for (int x = 0; x < m_x; x += m_mcu_w) {
-            code_block(m_image[0].get_dctq(x,   y), &m_huff[0], &m_comp[0]);
-            code_block(m_image[0].get_dctq(x+8, y), &m_huff[0], &m_comp[0]);
-            code_block(m_image[1].get_dctq(x/2, y), &m_huff[1], &m_comp[1]);
-            code_block(m_image[2].get_dctq(x/2, y), &m_huff[1], &m_comp[2]);
+            code_block(m_image[0].get_dctq(x,   y), &m_huff[0], &m_comp[0], write);
+            code_block(m_image[0].get_dctq(x+8, y), &m_huff[0], &m_comp[0], write);
+            code_block(m_image[1].get_dctq(x/2, y), &m_huff[1], &m_comp[1], write);
+            code_block(m_image[2].get_dctq(x/2, y), &m_huff[1], &m_comp[2], write);
         }
     } else if ((m_comp[0].m_h_samp == 2) && (m_comp[0].m_v_samp == 2)) {
         for (int x = 0; x < m_x; x += m_mcu_w) {
-            code_block(m_image[0].get_dctq(x,   y),   &m_huff[0], &m_comp[0]);
-            code_block(m_image[0].get_dctq(x+8, y),   &m_huff[0], &m_comp[0]);
-            code_block(m_image[0].get_dctq(x,   y+8), &m_huff[0], &m_comp[0]);
-            code_block(m_image[0].get_dctq(x+8, y+8), &m_huff[0], &m_comp[0]);
-            code_block(m_image[1].get_dctq(x/2, y/2), &m_huff[1], &m_comp[1]);
-            code_block(m_image[2].get_dctq(x/2, y/2), &m_huff[1], &m_comp[2]);
+            code_block(m_image[0].get_dctq(x,   y),   &m_huff[0], &m_comp[0], write);
+            code_block(m_image[0].get_dctq(x+8, y),   &m_huff[0], &m_comp[0], write);
+            code_block(m_image[0].get_dctq(x,   y+8), &m_huff[0], &m_comp[0], write);
+            code_block(m_image[0].get_dctq(x+8, y+8), &m_huff[0], &m_comp[0], write);
+            code_block(m_image[1].get_dctq(x/2, y/2), &m_huff[1], &m_comp[1], write);
+            code_block(m_image[2].get_dctq(x/2, y/2), &m_huff[1], &m_comp[2], write);
         }
     }
 }
