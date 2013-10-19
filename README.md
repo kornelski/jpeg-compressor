@@ -54,4 +54,19 @@ ImageMagick = 5033B (left), this encoder = 4890B (right)
 
 ![ImageMagick](examples/kodim19small.png-10-im.jpg) ![This encoder](examples/kodim19small.png-8-wq.jpg)
 
-This is done by tweaking quantization tables. Further improvements are possible.
+This is done merely by tweaking quantization tables. Further improvements are possible.
+
+----
+
+## Failed experiments
+
+### Blurring DC quantization
+
+JPEG stores average brightness per each 8x8 block, and heavy compression reduces number of brightness levels available (DC quantization), causing obvious blockyness.
+
+I've tried to apply blur that smoothes edges introduced by quantization. Here's an exaggreated example that looks nice:
+
+![Standard](examples/dcquant-no-blur.jpg) ![Blurred](examples/dcquant-blur.jpg)
+
+Unfortunately with proper quantization tables there isn't enough fidelity in higher frequencies to make a difference, and bits spent on soft edges could as well be spent on better DC in a first place.
+
