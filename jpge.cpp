@@ -466,7 +466,7 @@ void jpeg_encoder::emit_sos()
 }
 
 // Emit all markers at beginning of image file.
-void jpeg_encoder::emit_markers()
+void jpeg_encoder::emit_start_markers()
 {
     emit_marker(M_SOI);
     emit_jfif_app0();
@@ -526,24 +526,27 @@ void jpeg_encoder::compute_quant_table(int32 *pDst, int16 *pSrc)
     if (pDst[2] > 24) pDst[2] = (pDst[2]+24)/2;
 }
 
-// Higher-level methods.
-void jpeg_encoder::reset_pass()
+void jpeg_encoder::reset_last_dc()
 {
     m_bit_buffer = 0; m_bits_in = 0;
     m_comp[0].m_last_dc_val=0; m_comp[1].m_last_dc_val=0; m_comp[2].m_last_dc_val=0;
 }
 
-bool jpeg_encoder::second_pass_init()
+void jpeg_encoder::compute_huffman_tables()
 {
-    m_huff[0].ac.compute();
+    m_huff[0].dc.optimize(DC_LUM_CODES);
     m_huff[0].dc.compute();
+
+    m_huff[0].ac.optimize(AC_LUM_CODES);
+    m_huff[0].ac.compute();
+
     if (m_num_components > 1) {
-        m_huff[1].ac.compute();
+        m_huff[1].dc.optimize(DC_CHROMA_CODES);
         m_huff[1].dc.compute();
+
+        m_huff[1].ac.optimize(AC_CHROMA_CODES);
+        m_huff[1].ac.compute();
     }
-    reset_pass();
-    emit_markers();
-    return true;
 }
 
 bool jpeg_encoder::jpg_open(int p_x_res, int p_y_res)
@@ -591,7 +594,7 @@ bool jpeg_encoder::jpg_open(int p_x_res, int p_y_res)
     m_out_buf_left = JPGE_OUT_BUF_SIZE;
     m_pOut_buf = m_out_buf;
 
-    reset_pass();
+    reset_last_dc();
     return m_all_stream_writes_succeeded;
 }
 
@@ -774,17 +777,7 @@ void jpeg_encoder::code_mcu_row(int y, bool write)
     }
 }
 
-void jpeg_encoder::terminate_pass_one()
-{
-    m_huff[0].dc.optimize(DC_LUM_CODES);
-    m_huff[0].ac.optimize(AC_LUM_CODES);
-    if (m_num_components > 1) {
-        m_huff[1].dc.optimize(DC_CHROMA_CODES);
-        m_huff[1].ac.optimize(AC_CHROMA_CODES);
-    }
-}
-
-bool jpeg_encoder::terminate_pass_two()
+bool jpeg_encoder::emit_end_markers()
 {
     put_bits(0x7F, 7);
     flush_output_buffer();
@@ -806,16 +799,16 @@ bool jpeg_encoder::process_end_of_image()
 
     for (int y = 0; y < m_y; y+= m_mcu_h) {
         code_mcu_row(y, false);
-        if (!m_all_stream_writes_succeeded) return false;
     }
-    terminate_pass_one();
+    compute_huffman_tables();
+    reset_last_dc();
 
-    second_pass_init();
+    emit_start_markers();
     for (int y = 0; y < m_y; y+= m_mcu_h) {
         if (!m_all_stream_writes_succeeded) return false;
         code_mcu_row(y, true);
     }
-    return terminate_pass_two();
+    return emit_end_markers();
 }
 
 void jpeg_encoder::load_mcu_Y(const uint8 *pSrc, int width, int bpp, int y)

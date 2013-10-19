@@ -181,11 +181,12 @@ private:
     void emit_dht(uint8 *bits, uint8 *val, int index, bool ac_flag);
     void emit_dhts();
     void emit_sos();
-    void emit_markers();
+    void emit_start_markers();
+    bool emit_end_markers();
     void compute_quant_table(int32 *dst, int16 *src);
     void adjust_quant_table(int32 *dst, int32 *src);
-    void reset_pass();
-    bool second_pass_init();
+    void reset_last_dc();
+    void compute_huffman_tables();
     bool jpg_open(int p_x_res, int p_y_res);
     void quantize_pixels(dct_t *pSrc, int16 *pDst, const int32 *q);
     void flush_output_buffer();
@@ -193,8 +194,6 @@ private:
     void put_signed_int_bits(int num, uint len);
     void code_block(dctq_t *coefficients, huffman_dcac *huff, component *comp, bool putbits);
     void code_mcu_row(int y, bool write);
-    void terminate_pass_one();
-    bool terminate_pass_two();
     void clear();
     void init();
 };
