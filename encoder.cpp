@@ -385,8 +385,6 @@ int main(int arg_c, char *ppArgs[])
         }
     }
 
-    double total_comp_time = 0;
-
     const long comp_file_size = get_file_size(pDst_filename);
     const uint total_pixels = width * height;
     log_printf("Compressed file size: %u, bits/pixel: %3.3f\n", comp_file_size, (comp_file_size * 8.0f) / total_pixels);
@@ -400,14 +398,10 @@ int main(int arg_c, char *ppArgs[])
     else
         pUncomp_image_data = stbi_load(pDst_filename, &uncomp_width, &uncomp_height, &uncomp_actual_comps, uncomp_req_comps);
 
-    double total_uncomp_time = 0;
-
     if (!pUncomp_image_data) {
         log_printf("Failed loading compressed image file \"%s\"!\n", pDst_filename);
         return EXIT_FAILURE;
     }
-
-    log_printf("Compression time: %3.3fms, Decompression time: %3.3fms\n", total_comp_time, total_uncomp_time);
 
     if ((uncomp_width != width) || (uncomp_height != height)) {
         log_printf("Loaded JPEG file has a different resolution than the original file!\n");
@@ -419,6 +413,9 @@ int main(int arg_c, char *ppArgs[])
     image_compare(results, width, height, pImage_data, req_comps, pUncomp_image_data, uncomp_req_comps, (params.m_subsampling == jpge::Y_ONLY) || (actual_comps == 1) || (uncomp_actual_comps == 1));
     log_printf("Error Max: %f, Mean: %f, Mean^2: %f, RMSE: %f, PSNR: %f\n", results.max_err, results.mean, results.mean_squared, results.root_mean_squared, results.peak_snr);
 
+    if (results.root_mean_squared > 40) {
+        return EXIT_FAILURE;
+    }
     log_printf("Success.\n");
 
     return EXIT_SUCCESS;
