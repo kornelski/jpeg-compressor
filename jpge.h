@@ -159,7 +159,6 @@ private:
     params m_params;
     uint8 m_num_components;
     component m_comp[3];
-    int32 m_mcu_y_ofs;
 
     struct huffman_dcac m_huff[2];
     enum { JPGE_OUT_BUF_SIZE = 2048 };
@@ -168,7 +167,6 @@ private:
     uint m_out_buf_left;
     uint32 m_bit_buffer;
     uint m_bits_in;
-    uint8 m_pass_num;
     bool m_all_stream_writes_succeeded;
     int m_mcu_w, m_mcu_h;
     int m_x, m_y;
@@ -194,7 +192,7 @@ private:
     void put_bits(uint bits, uint len);
     void put_signed_int_bits(int num, uint len);
     void code_block(dctq_t *coefficients, huffman_dcac *huff, component *comp, bool putbits);
-    void code_mcu_row(int y);
+    void code_mcu_row(int y, bool write);
     void terminate_pass_one();
     bool terminate_pass_two();
     void clear();

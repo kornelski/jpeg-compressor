@@ -531,7 +531,6 @@ void jpeg_encoder::reset_pass()
 {
     m_bit_buffer = 0; m_bits_in = 0;
     m_comp[0].m_last_dc_val=0; m_comp[1].m_last_dc_val=0; m_comp[2].m_last_dc_val=0;
-    m_mcu_y_ofs = 0;
 }
 
 bool jpeg_encoder::second_pass_init()
@@ -544,7 +543,6 @@ bool jpeg_encoder::second_pass_init()
     }
     reset_pass();
     emit_markers();
-    m_pass_num = 2;
     return true;
 }
 
@@ -593,7 +591,6 @@ bool jpeg_encoder::jpg_open(int p_x_res, int p_y_res)
     m_out_buf_left = JPGE_OUT_BUF_SIZE;
     m_pOut_buf = m_out_buf;
 
-    m_pass_num = 1;
     reset_pass();
     return m_all_stream_writes_succeeded;
 }
@@ -746,9 +743,8 @@ void jpeg_encoder::code_block(dctq_t *src, huffman_dcac *huff, component *comp, 
     }
 }
 
-void jpeg_encoder::code_mcu_row(int y)
+void jpeg_encoder::code_mcu_row(int y, bool write)
 {
-    bool write = m_pass_num == 2;
     if (m_num_components == 1) {
         for (int x = 0; x < m_x; x += m_mcu_w) {
             code_block(m_image[0].get_dctq(x, y), &m_huff[0], &m_comp[0], write);
@@ -793,7 +789,6 @@ bool jpeg_encoder::terminate_pass_two()
     put_bits(0x7F, 7);
     flush_output_buffer();
     emit_marker(M_EOI);
-    m_pass_num++; // purposely bump up m_pass_num, for debugging
     return m_all_stream_writes_succeeded;
 }
 
@@ -810,7 +805,7 @@ bool jpeg_encoder::process_end_of_image()
     }
 
     for (int y = 0; y < m_y; y+= m_mcu_h) {
-        code_mcu_row(y);
+        code_mcu_row(y, false);
         if (!m_all_stream_writes_succeeded) return false;
     }
     terminate_pass_one();
@@ -818,7 +813,7 @@ bool jpeg_encoder::process_end_of_image()
     second_pass_init();
     for (int y = 0; y < m_y; y+= m_mcu_h) {
         if (!m_all_stream_writes_succeeded) return false;
-        code_mcu_row(y);
+        code_mcu_row(y, true);
     }
     return terminate_pass_two();
 }
@@ -861,7 +856,6 @@ void jpeg_encoder::load_mcu_YCC(const uint8 *pSrc, int width, int bpp, int y)
 
 void jpeg_encoder::clear()
 {
-    m_pass_num = 0;
     m_num_components=0;
     m_all_stream_writes_succeeded = true;
 }
