@@ -511,11 +511,11 @@ void huffman_table::compute()
 // Quantization table generation.
 void jpeg_encoder::compute_quant_table(int32 *pDst, int16 *pSrc)
 {
-    int32 q;
+    float q;
     if (m_params.m_quality < 50)
-        q = 5000 / m_params.m_quality;
+        q = 5000.0 / m_params.m_quality;
     else
-        q = 200 - m_params.m_quality * 2;
+        q = 200.0 - m_params.m_quality * 2.0;
     for (int i = 0; i < 64; i++) {
         int32 j = pSrc[i]; j = (j * q + 50L) / 100L;
         pDst[i] = JPGE_MIN(JPGE_MAX(j, 1), 1024/3);

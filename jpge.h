@@ -37,7 +37,7 @@ struct params {
     }
 
     // Quality: 1-100, higher is better. Typical values are around 50-95.
-    int m_quality;
+    float m_quality;
 
     // m_subsampling:
     // 0 = Y (grayscale) only

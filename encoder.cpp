@@ -329,7 +329,7 @@ int main(int arg_c, char *ppArgs[])
     const char *pSrc_filename = ppArgs[arg_index++];
     const char *pDst_filename = ppArgs[arg_index++];
 
-    int quality_factor = atoi(ppArgs[arg_index++]);
+    float quality_factor = atof(ppArgs[arg_index++]);
     if ((quality_factor < 1) || (quality_factor > 100)) {
         log_printf("Quality factor must range from 1-100!\n");
         return EXIT_FAILURE;
