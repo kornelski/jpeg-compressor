@@ -3,7 +3,7 @@ BIN=encoder
 CXXFLAGS ?= -O3 -ffast-math -fno-signed-zeros
 
 $(BIN): $(OBJS)
-	$(CXX) $(CFLAGS) $(CXXFLAGS) -o $@ $^
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
 clean:
 	rm $(OBJS) $(BIN)
