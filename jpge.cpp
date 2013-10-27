@@ -785,7 +785,7 @@ bool jpeg_encoder::emit_end_markers()
     return m_all_stream_writes_succeeded;
 }
 
-bool jpeg_encoder::process_end_of_image()
+bool jpeg_encoder::compress_image()
 {
     for(int c=0; c < m_num_components; c++) {
         for (int y = 0; y < m_image[c].m_y; y+= 8) {
@@ -988,7 +988,7 @@ bool compress_image_to_stream(output_stream &dst_stream, int width, int height, 
     if (!encoder.read_image(pImage_data, width, height, num_channels))
         return false;
 
-    if (!encoder.process_end_of_image())
+    if (!encoder.compress_image())
         return false;
 
     encoder.deinit();

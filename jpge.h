@@ -147,7 +147,7 @@ public:
     bool process_scanline2(const uint8 *pScanline, int y);
 
     // You must call after all scanlines are processed to finish compression.
-    bool process_end_of_image();
+    bool compress_image();
     void load_mcu_Y(const uint8 *pSrc, int width, int bpp, int y);
     void load_mcu_YCC(const uint8 *pSrc, int width, int bpp, int y);
 
