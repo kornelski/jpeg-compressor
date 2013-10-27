@@ -150,7 +150,6 @@ public:
 
     // You must call after all scanlines are processed to finish compression.
     bool compress_image();
-    void rle_compress_dc(image &img, int32 dc_quant);
     void load_mcu_Y(const uint8 *pSrc, int width, int bpp, int y);
     void load_mcu_YCC(const uint8 *pSrc, int width, int bpp, int y);
 

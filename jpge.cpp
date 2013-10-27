@@ -790,7 +790,8 @@ struct lra {
     float acc;
 };
 
-static lra rle_run(float *dc, float avg, unsigned int start, unsigned int width, const float maxerror) {
+static const float dc_masking_level = 16;
+static lra rle_run(float *dc, unsigned char *dc_mask, float avg, unsigned int start, unsigned int width, const float maxerror) {
     unsigned int left = start, right = start;
     float acc = dc[start];
 
@@ -800,7 +801,7 @@ static lra rle_run(float *dc, float avg, unsigned int start, unsigned int width,
 
         if (!left_stuck && left > 0) {
             const float x0 = dc[left-1];
-            const float diff = colordifference(avg, x0);
+            const float diff = colordifference(avg, x0) * dc_masking_level/(dc_masking_level+dc_mask[left-1]);
             if (diff < maxerror) {
                 acc += x0;
                 left--;
@@ -811,7 +812,7 @@ static lra rle_run(float *dc, float avg, unsigned int start, unsigned int width,
 
         if (!right_stuck && right < width-2) {
             const float x0 = dc[right+1];
-            const float diff = colordifference(avg, x0);
+            const float diff = colordifference(avg, x0) * dc_masking_level/(dc_masking_level+dc_mask[right+1]);
             if (diff < maxerror) {
                 acc += x0;
                 right++;
@@ -827,16 +828,35 @@ static lra rle_run(float *dc, float avg, unsigned int start, unsigned int width,
     };
 }
 
-static void rle_line(float *dc, float *dc_deltas, dctq_t *dc_dest, int width, int32 dc_quant)
+static void rle_line(float *dc, float *dc_deltas, unsigned char *dc_mask, dctq_t *dc_dest, int width, int32 dc_quant)
 {
+    float maxerror = colordifference(0, JPGE_MIN(10+dc_quant/10,dc_quant)*1.5); // at very low quality RLE lines become visible
+
+    // FIXME: it only blurs within single run, should blur across all un-RLE blocks
     if (width < 3) {
+        // FIXME: this is stupidly blurring to lower differences between blocks
+        // but it may be degrading too much without need for it
         for(int i=0; i < width; i++) {
-            dc_dest[i] = round_to_zero(dc[i], dc_quant);
+            // FIXME: out of bounds access!
+            dctq_t here = round_to_zero(dc[i], dc_quant);
+            dctq_t prev = round_to_zero(dc[i-1], dc_quant);
+            dctq_t next = round_to_zero(dc[i+1], dc_quant);
+            // FIXME: check if one sharp edge can be better/cheaper replaced with two soft ones
+            if (prev != here && next != here) {
+                dct_t avg = (dc[i]+prev*dc_quant+dc[i+1])/3;
+                float diff = colordifference(avg, dc[i]) * dc_masking_level/(dc_masking_level+dc_mask[i]);
+                if (diff < maxerror*2) here = round_to_zero(avg, dc_quant);
+                else {
+                  avg = (dc[i]+dc[i]+prev*dc_quant+dc[i+1])*0.25;
+                    float diff = colordifference(avg, dc[i]) * dc_masking_level/(dc_masking_level+dc_mask[i]);
+                    if (diff < maxerror*2) here = round_to_zero(avg, dc_quant);
+                }
+            }
+            dc_dest[i] = here;
         }
         return;
     }
 
-    const float maxerror = colordifference(0, dc_quant*1.5);
 
     unsigned int best_start = width/2;
     unsigned int least_diff = dc_deltas[best_start];
@@ -849,9 +869,10 @@ static void rle_line(float *dc, float *dc_deltas, dctq_t *dc_dest, int width, in
 
     float avg = (dc[best_start]+dc[best_start?best_start-1:0]+dc[best_start<width-1?best_start+1:best_start])/3.0;
 
-    lra tmp = rle_run(dc, avg, best_start, width, maxerror*0.8);
+    // FIXME: for chroma avoid 0 DC values (it desaturates and looks bad, false non-0 color is better)
+    lra tmp = rle_run(dc, dc_mask, avg, best_start, width, maxerror*0.8);
     avg = round_to_zero(tmp.acc / (tmp.right - tmp.left + 1), dc_quant) * dc_quant;
-    tmp = rle_run(dc, avg, best_start, width, maxerror);
+    tmp = rle_run(dc, dc_mask, avg, best_start, width, maxerror);
     int left = tmp.left;
     int right = tmp.right;
     float acc = tmp.acc;
@@ -863,14 +884,14 @@ static void rle_line(float *dc, float *dc_deltas, dctq_t *dc_dest, int width, in
             dc_dest[x] = avg;
         }
         if (right < width-1) {
-            rle_line(dc+right+1, dc_deltas+right+1, dc_dest+right+1, width-right-1, dc_quant);
+            rle_line(dc+right+1, dc_deltas+right+1, dc_mask+right+1, dc_dest+right+1, width-right-1, dc_quant);
         }
         if (left) {
-            rle_line(dc, dc_deltas, dc_dest, left, dc_quant);
+            rle_line(dc, dc_deltas, dc_mask, dc_dest, left, dc_quant);
         }
     } else {
-        rle_line(dc, dc_deltas, dc_dest, best_start, dc_quant);
-        rle_line(dc+best_start, dc_deltas+best_start, dc_dest+best_start, width-best_start, dc_quant);
+        rle_line(dc, dc_deltas, dc_mask, dc_dest, best_start, dc_quant);
+        rle_line(dc+best_start, dc_deltas+best_start, dc_mask+best_start, dc_dest+best_start, width-best_start, dc_quant);
     }
 }
 
@@ -902,9 +923,40 @@ static void blur_dc_deltas(float *dc_deltas, int dc_len) {
     }
 }
 
-void jpeg_encoder::rle_compress_dc(image &img, int32 dc_quant) {
+static void get_dc_contrast_mask(image &img, unsigned char *dc_mask, int32 *qt) {
+    for (int j=0, y = 0; y < img.m_y; y+= 8) {
+        for (int x = 0; x < img.m_x; x += 8) {
+            dctq_t *q = img.get_dctq(x, y);
+            // TODO: not sure if it should be computed before or after quantization
+            int32 noise = abs(q[1])*qt[1]/3 + abs(q[2])*qt[2]/3 // used only because these are most often non-0
+                + abs(q[4])*qt[4]/2
+                + abs(q[7])*qt[7] + abs(q[8])*qt[8]  // low-frequency coefficients that are not biased to any edge
+                + abs(q[11])*qt[11] + abs(q[12])*qt[12] + abs(q[13])*qt[13]
+                + abs(q[17])*qt[17] + abs(q[18])*qt[18]
+                + abs(q[23])*qt[23] + abs(q[24])*qt[24] + abs(q[25])*qt[25];
+            dc_mask[j++] = JPGE_MIN(255, noise/4);
+        }
+    }
+
+    // unsigned char *tmp = (unsigned char *)malloc((img.m_x/8 * img.m_y/8) * sizeof(dc_mask[0]));
+    // max3(dc_mask, tmp, img.m_x/8, img.m_y/8);
+    // min3(tmp, dc_mask, img.m_x/8, img.m_y/8);
+    // free(tmp);
+
+    // for (int j=0, y = 0; y < img.m_y; y+= 8) {
+    //     for (int x = 0; x < img.m_x; x += 8) {
+    //         dctq_t *q = img.get_dctq(x, y);
+
+    //         q[0] = dc_mask[j++] * 4 / qt[0];
+    //         for(int i=1; i<64;i++)q[i]=0;
+    //     }
+    // }
+}
+
+static void rle_compress_dc(image &img, int32 *quant) {
     size_t dc_len = img.m_y/8 * img.m_x/8;
     float *dc = (float *)malloc(dc_len * sizeof(dc[0]));
+    unsigned char *dc_mask = (unsigned char *)malloc(dc_len * sizeof(dc_mask[0]));
     float *dc_deltas = (float *)malloc(dc_len * sizeof(dc_deltas[0]));
     dctq_t *dc_dest = (dctq_t *)malloc(dc_len * sizeof(dc_dest[0]));
 
@@ -917,27 +969,28 @@ void jpeg_encoder::rle_compress_dc(image &img, int32 dc_quant) {
     // Blur!
     for(int blurs=0; blurs < 4; blurs++) blur_dc_deltas(dc_deltas, dc_len);
 
-    rle_line(dc, dc_deltas, dc_dest, dc_len, dc_quant);
+    // assumption is that DC is more important in areas with low noise
+    get_dc_contrast_mask(img, dc_mask, quant);
+
+    rle_line(dc, dc_deltas, dc_mask, dc_dest, dc_len, quant[0]);
 
     for (int j=0, y = 0; y < img.m_y; y+= 8) {
         for (int x = 0; x < img.m_x; x += 8) {
-            dct_t sample[64];
-            for(int i=0; i < 64; i++) sample[i] = dc_dest[j]*dc_quant/8.0;
-            img.save_block(sample, x, y);
-            j++;
+            dctq_t *q = img.get_dctq(x, y);
+
+            q[0] = dc_dest[j++];
+            // for(int i=1; i<64;i++)q[i]=0;
         }
     }
 
     free(dc);
+    free(dc_mask);
     free(dc_dest);
     free(dc_deltas);
 }
 
 bool jpeg_encoder::compress_image()
 {
-    for(int c=0; c < m_num_components; c++) {
-        rle_compress_dc(m_image[c], m_huff[c > 0].m_quantization_table[0]);
-    }
 
     for(int c=0; c < m_num_components; c++) {
         for (int y = 0; y < m_image[c].m_y; y+= 8) {
@@ -947,6 +1000,10 @@ bool jpeg_encoder::compress_image()
                 quantize_pixels(sample, m_image[c].get_dctq(x, y), m_huff[c > 0].m_quantization_table);
             }
         }
+    }
+
+    for(int c=0; c < m_num_components; c++) {
+        rle_compress_dc(m_image[c], m_huff[c > 0].m_quantization_table);
     }
 
     for (int y = 0; y < m_y; y+= m_mcu_h) {
