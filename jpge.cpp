@@ -26,6 +26,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 
 #define JPGE_MAX(a,b) (((a)>(b))?(a):(b))
 #define JPGE_MIN(a,b) (((a)<(b))?(a):(b))
@@ -775,8 +776,154 @@ bool jpeg_encoder::emit_end_markers()
     return m_all_stream_writes_succeeded;
 }
 
+
+static float colordifference(float a, float b) {
+    // a += 1024;
+    // b += 1024;
+    // a = sqrt(a);
+    // b = sqrt(b);
+    return (a-b)*(a-b);
+}
+
+static void rle_quant(float *dc, float *dc_deltas, dctq_t *dc_dest, int width, int32 dc_quant) {
+    for(int i=0; i < width; i++) {
+        dc_dest[i] = round_to_zero(dc[i], dc_quant);
+    }
+}
+
+static void rle_line(float *dc, float *dc_deltas, dctq_t *dc_dest, int width, int32 dc_quant)
+{
+    if (width < 3) {
+        rle_quant(dc, dc_deltas, dc_dest, width, dc_quant);
+        return;
+    }
+
+    const float maxerror = colordifference(0, dc_quant*1.5);
+
+    unsigned int best_start = width/2;
+    unsigned int least_diff = dc_deltas[best_start];
+    for(int i=1; i < width-2; i++) {
+        if (dc_deltas[i] < least_diff) {
+            best_start = i;
+            least_diff = dc_deltas[i];
+        }
+    }
+
+    unsigned int left = best_start, right = best_start;
+    dct_t acc = dc[best_start];
+    const float avg = round_to_zero((dc[best_start]+dc[best_start?best_start-1:0]+dc[best_start<width-1?best_start+1:best_start])/3.0, dc_quant) * dc_quant;
+
+    bool left_stuck = false, right_stuck = false;
+    do {
+        const float len = right - left + 1;
+
+        if (!left_stuck && left > 0) {
+            const float x0 = dc[left-1];
+            const float diff = colordifference(avg, x0);
+            if (diff < maxerror) {
+                acc += x0;
+                left--;
+            }
+            else left_stuck = true;
+        }
+        else left_stuck = true;
+
+        if (!right_stuck && right < width-2) {
+            const float x0 = dc[right+1];
+            const float diff = colordifference(avg, x0);
+            if (diff < maxerror) {
+                acc += x0;
+                right++;
+            }
+            else right_stuck = true;
+        }
+        else right_stuck = true;
+
+    } while(!left_stuck || !right_stuck);
+
+    const unsigned int len = right - left + 1;
+    if (len > 2) {
+        const dctq_t avg = round_to_zero(acc / (dct_t)len, dc_quant);
+        for(int x=left; x <= right; x++) {
+            dc_dest[x] = avg;
+        }
+        if (right < width-1) {
+            rle_line(dc+right+1, dc_deltas+right+1, dc_dest+right+1, width-right-1, dc_quant);
+        }
+        if (left) {
+            rle_line(dc, dc_deltas, dc_dest, left, dc_quant);
+        }
+    } else {
+        rle_line(dc, dc_deltas, dc_dest, best_start, dc_quant);
+        rle_line(dc+best_start, dc_deltas+best_start, dc_dest+best_start, width-best_start, dc_quant);
+    }
+}
+
+static void get_dc_values(image &img, float *dc) {
+    for (int j=0, y = 0; y < img.m_y; y+= 8) {
+        for (int x = 0; x < img.m_x; x += 8) {
+            dct_t sample[64], sum = 0;
+            img.load_block(sample, x, y);
+            for(int i=0; i < 64; i++) sum += sample[i];
+            dc[j++] = sum/(64.0/8.0); // 64 pixels, rescale from 256 to 1024
+        }
+    }
+}
+
+static void get_absolute_dc_deltas(float *dc, int dc_len, float *dc_deltas) {
+    float last_dc=0;
+    for(int i=0; i < dc_len; i++) {
+        dc_deltas[i] = (last_dc - dc[i])*(last_dc - dc[i]);
+        last_dc = dc[i];
+    }
+}
+
+static void blur_dc_deltas(float *dc_deltas, int dc_len) {
+    // I'm lazy - ignoring edge cases. Scale doesn't matter, so no division
+    float prev = dc_deltas[0];
+    for(int i=0; i < dc_len-1; i++) {
+        float tmp = prev; prev = dc_deltas[i];
+        dc_deltas[i] += tmp + dc_deltas[i+1];
+    }
+}
+
+void jpeg_encoder::rle_compress_dc(image &img, int32 dc_quant) {
+    size_t dc_len = img.m_y/8 * img.m_x/8;
+    float *dc = (float *)malloc(dc_len * sizeof(dc[0]));
+    float *dc_deltas = (float *)malloc(dc_len * sizeof(dc_deltas[0]));
+    dctq_t *dc_dest = (dctq_t *)malloc(dc_len * sizeof(dc_dest[0]));
+
+    // extract DC coefficients from image. DCT not necessary, DC is just an average (although I don't bother dividing value here).
+    get_dc_values(img, dc);
+
+    // Differences between neighboring DC values (we'll search for minimums in there)
+    get_absolute_dc_deltas(dc, dc_len, dc_deltas);
+
+    // Blur!
+    for(int blurs=0; blurs < 4; blurs++) blur_dc_deltas(dc_deltas, dc_len);
+
+    rle_line(dc, dc_deltas, dc_dest, dc_len, dc_quant);
+
+    for (int j=0, y = 0; y < img.m_y; y+= 8) {
+        for (int x = 0; x < img.m_x; x += 8) {
+            dct_t sample[64];
+            for(int i=0; i < 64; i++) sample[i] = dc_dest[j]*dc_quant/8.0;
+            img.save_block(sample, x, y);
+            j++;
+        }
+    }
+
+    free(dc);
+    free(dc_dest);
+    free(dc_deltas);
+}
+
 bool jpeg_encoder::compress_image()
 {
+    for(int c=0; c < m_num_components; c++) {
+        rle_compress_dc(m_image[c], m_huff[c > 0].m_quantization_table[0]);
+    }
+
     for(int c=0; c < m_num_components; c++) {
         for (int y = 0; y < m_image[c].m_y; y+= 8) {
             for (int x = 0; x < m_image[c].m_x; x += 8) {
