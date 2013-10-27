@@ -785,33 +785,14 @@ static float colordifference(float a, float b) {
     return (a-b)*(a-b);
 }
 
-static void rle_quant(float *dc, float *dc_deltas, dctq_t *dc_dest, int width, int32 dc_quant) {
-    for(int i=0; i < width; i++) {
-        dc_dest[i] = round_to_zero(dc[i], dc_quant);
-    }
-}
+struct lra {
+    int left, right;
+    float acc;
+};
 
-static void rle_line(float *dc, float *dc_deltas, dctq_t *dc_dest, int width, int32 dc_quant)
-{
-    if (width < 3) {
-        rle_quant(dc, dc_deltas, dc_dest, width, dc_quant);
-        return;
-    }
-
-    const float maxerror = colordifference(0, dc_quant*1.5);
-
-    unsigned int best_start = width/2;
-    unsigned int least_diff = dc_deltas[best_start];
-    for(int i=1; i < width-2; i++) {
-        if (dc_deltas[i] < least_diff) {
-            best_start = i;
-            least_diff = dc_deltas[i];
-        }
-    }
-
-    unsigned int left = best_start, right = best_start;
-    dct_t acc = dc[best_start];
-    const float avg = round_to_zero((dc[best_start]+dc[best_start?best_start-1:0]+dc[best_start<width-1?best_start+1:best_start])/3.0, dc_quant) * dc_quant;
+static lra rle_run(float *dc, float avg, unsigned int start, unsigned int width, const float maxerror) {
+    unsigned int left = start, right = start;
+    float acc = dc[start];
 
     bool left_stuck = false, right_stuck = false;
     do {
@@ -840,6 +821,40 @@ static void rle_line(float *dc, float *dc_deltas, dctq_t *dc_dest, int width, in
         else right_stuck = true;
 
     } while(!left_stuck || !right_stuck);
+
+    return (lra){
+        left, right, acc,
+    };
+}
+
+static void rle_line(float *dc, float *dc_deltas, dctq_t *dc_dest, int width, int32 dc_quant)
+{
+    if (width < 3) {
+        for(int i=0; i < width; i++) {
+            dc_dest[i] = round_to_zero(dc[i], dc_quant);
+        }
+        return;
+    }
+
+    const float maxerror = colordifference(0, dc_quant*1.5);
+
+    unsigned int best_start = width/2;
+    unsigned int least_diff = dc_deltas[best_start];
+    for(int i=1; i < width-2; i++) {
+        if (dc_deltas[i] < least_diff) {
+            best_start = i;
+            least_diff = dc_deltas[i];
+        }
+    }
+
+    float avg = (dc[best_start]+dc[best_start?best_start-1:0]+dc[best_start<width-1?best_start+1:best_start])/3.0;
+
+    lra tmp = rle_run(dc, avg, best_start, width, maxerror*0.8);
+    avg = round_to_zero(tmp.acc / (tmp.right - tmp.left + 1), dc_quant) * dc_quant;
+    tmp = rle_run(dc, avg, best_start, width, maxerror);
+    int left = tmp.left;
+    int right = tmp.right;
+    float acc = tmp.acc;
 
     const unsigned int len = right - left + 1;
     if (len > 2) {
