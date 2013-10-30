@@ -58,6 +58,17 @@ This is done merely by tweaking quantization tables. Further improvements are po
 
 ----
 
+## Not quite failed experiments
+
+### Lossy RLE on DC
+
+I've created algorithm for proper [unbiased lossy RLE compression](https://github.com/pornel/mediancut-posterizer/tree/rle) (I can make lossy BMP, lossy PCX and lossy IFF ILBM files!), and wanted to see if it could work when applied to JPEGs DC coefficients. It kinda does a bit, but it often becomes noticeable at 1% file size gain, so overall it may not be worth the effort. Here's a 7% improvement in file size (if you can't see the difference you're sitting too close to the monitor):
+
+![Standard](examples/parkrun-no-rle.jpg) ![Blurred](examples/parkrun-rle.jpg)
+
+Grass and rocks at the bottom became flat and bland, but it's hard to see any difference in the trees. Any idea how to detect areas of the image that tolerate this degradation? I've tried looking for noisy areas based on amplitude of selected AC coefficients, but grass and trees have almost the same ACs.
+
+
 ## Failed experiments
 
 ### Blurring DC quantization
@@ -69,4 +80,3 @@ I've tried to apply blur that smoothes edges introduced by quantization. Here's 
 ![Standard](examples/dcquant-no-blur.jpg) ![Blurred](examples/dcquant-blur.jpg)
 
 Unfortunately with proper quantization tables there isn't enough fidelity in higher frequencies to make a difference, and bits spent on soft edges could as well be spent on better DC in a first place.
-
