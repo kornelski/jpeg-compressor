@@ -30,7 +30,8 @@
 #define JPGE_MAX(a,b) (((a)>(b))?(a):(b))
 #define JPGE_MIN(a,b) (((a)<(b))?(a):(b))
 
-namespace jpge {
+namespace jpge
+{
 
 static inline void *jpge_malloc(size_t nSize)
 {
@@ -81,19 +82,23 @@ static void Y_to_YCC(image *img, const uint8 *pSrc, int width, int y)
     }
 }
 
-inline float image::get_px(int x, int y) {
+inline float image::get_px(int x, int y)
+{
     return m_pixels[y*m_x + x];
 }
 
-inline void image::set_px(float px, int x, int y) {
+inline void image::set_px(float px, int x, int y)
+{
     m_pixels[y*m_x + x] = px;
 }
 
-dctq_t *image::get_dctq(int x, int y) {
+dctq_t *image::get_dctq(int x, int y)
+{
     return &m_dctqs[64*(y/8 * m_x/8 + x/8)];
 }
 
-void image::subsample(image &luma, int v_samp) {
+void image::subsample(image &luma, int v_samp)
+{
     if (v_samp == 2) {
         for(int y=0; y < m_y; y+=2) {
             for(int x=0; x < m_x; x+=2) {
@@ -220,7 +225,10 @@ static inline sym_freq *radix_sort_syms(uint num_syms, sym_freq *pSyms0, sym_fre
         hist[256*3 + ((freq >> 24) & 0xFF)]++;
     }
     sym_freq *pCur_syms = pSyms0, *pNew_syms = pSyms1;
-    uint total_passes = cMaxPasses; while ((total_passes > 1) && (num_syms == hist[(total_passes - 1) * 256])) total_passes--;
+    uint total_passes = cMaxPasses;
+    while ((total_passes > 1) && (num_syms == hist[(total_passes - 1) * 256])) {
+        total_passes--;
+    }
     for (uint pass_shift = 0, pass = 0; pass < total_passes; pass++, pass_shift += 8) {
         const uint32 *pHist = &hist[pass << 8];
         uint offsets[256], cur_ofs = 0;
@@ -228,9 +236,12 @@ static inline sym_freq *radix_sort_syms(uint num_syms, sym_freq *pSyms0, sym_fre
             offsets[i] = cur_ofs;
             cur_ofs += pHist[i];
         }
-        for (uint i = 0; i < num_syms; i++)
+        for (uint i = 0; i < num_syms; i++) {
             pNew_syms[offsets[(pCur_syms[i].m_key >> pass_shift) & 0xFF]++] = pCur_syms[i];
-        sym_freq *t = pCur_syms; pCur_syms = pNew_syms; pNew_syms = t;
+        }
+        sym_freq *t = pCur_syms;
+        pCur_syms = pNew_syms;
+        pNew_syms = t;
     }
     return pCur_syms;
 }
@@ -239,24 +250,37 @@ static inline sym_freq *radix_sort_syms(uint num_syms, sym_freq *pSyms0, sym_fre
 static void calculate_minimum_redundancy(sym_freq *A, int n)
 {
     int root, leaf, next, avbl, used, dpth;
-    if (n==0) return; else if (n==1) {
+    if (n==0) {
+        return;
+    } else if (n==1) {
         A[0].m_key = 1;
         return;
     }
-    A[0].m_key += A[1].m_key; root = 0; leaf = 2;
+    A[0].m_key += A[1].m_key;
+    root = 0;
+    leaf = 2;
     for (next=1; next < n-1; next++) {
         if (leaf>=n || A[root].m_key<A[leaf].m_key) {
             A[next].m_key = A[root].m_key;
             A[root++].m_key = next;
-        } else A[next].m_key = A[leaf++].m_key;
+        } else {
+            A[next].m_key = A[leaf++].m_key;
+        }
         if (leaf>=n || (root<next && A[root].m_key<A[leaf].m_key)) {
             A[next].m_key += A[root].m_key;
             A[root++].m_key = next;
-        } else A[next].m_key += A[leaf++].m_key;
+        } else {
+            A[next].m_key += A[leaf++].m_key;
+        }
     }
     A[n-2].m_key = 0;
-    for (next=n-3; next>=0; next--) A[next].m_key = A[A[next].m_key].m_key+1;
-    avbl = 1; used = dpth = 0; root = n-2; next = n-1;
+    for (next=n-3; next>=0; next--) {
+        A[next].m_key = A[A[next].m_key].m_key+1;
+    }
+    avbl = 1;
+    used = dpth = 0;
+    root = n-2;
+    next = n-1;
     while (avbl>0) {
         while (root>=0 && (int)A[root].m_key==dpth) {
             used++;
@@ -273,13 +297,18 @@ static void calculate_minimum_redundancy(sym_freq *A, int n)
 // Limits canonical Huffman code table's max code size to max_code_size.
 static void huffman_enforce_max_code_size(int *pNum_codes, int code_list_len, int max_code_size)
 {
-    if (code_list_len <= 1) return;
+    if (code_list_len <= 1) {
+        return;
+    }
 
-    for (int i = max_code_size + 1; i <= MAX_HUFF_CODESIZE; i++) pNum_codes[max_code_size] += pNum_codes[i];
+    for (int i = max_code_size + 1; i <= MAX_HUFF_CODESIZE; i++) {
+        pNum_codes[max_code_size] += pNum_codes[i];
+    }
 
     uint32 total = 0;
-    for (int i = max_code_size; i > 0; i--)
+    for (int i = max_code_size; i > 0; i--) {
         total += (((uint32)pNum_codes[i]) << (max_code_size - i));
+    }
 
     while (total != (1UL << max_code_size)) {
         pNum_codes[max_code_size]--;
@@ -309,17 +338,20 @@ void huffman_table::optimize(int table_len)
     calculate_minimum_redundancy(pSyms, num_used_syms);
 
     // Count the # of symbols of each code size.
-    int num_codes[1 + MAX_HUFF_CODESIZE]; clear_obj(num_codes);
-    for (int i = 0; i < num_used_syms; i++)
+    int num_codes[1 + MAX_HUFF_CODESIZE];
+    clear_obj(num_codes);
+    for (int i = 0; i < num_used_syms; i++) {
         num_codes[pSyms[i].m_key]++;
+    }
 
     const uint JPGE_CODE_SIZE_LIMIT = 16; // the maximum possible size of a JPEG Huffman code (valid range is [9,16] - 9 vs. 8 because of the dummy symbol)
     huffman_enforce_max_code_size(num_codes, num_used_syms, JPGE_CODE_SIZE_LIMIT);
 
     // Compute m_huff_bits array, which contains the # of symbols per code size.
     clear_obj(m_bits);
-    for (int i = 1; i <= (int)JPGE_CODE_SIZE_LIMIT; i++)
+    for (int i = 1; i <= (int)JPGE_CODE_SIZE_LIMIT; i++) {
         m_bits[i] = static_cast<uint8>(num_codes[i]);
+    }
 
     // Remove the dummy symbol added above, which must be in largest bucket.
     for (int i = JPGE_CODE_SIZE_LIMIT; i >= 1; i--) {
@@ -330,8 +362,9 @@ void huffman_table::optimize(int table_len)
     }
 
     // Compute the m_huff_val array, which contains the symbol indices sorted by code size (smallest to largest).
-    for (int i = num_used_syms - 1; i >= 1; i--)
+    for (int i = num_used_syms - 1; i >= 1; i--) {
         m_val[num_used_syms - 1 - i] = static_cast<uint8>(pSyms[i].m_sym_index - 1);
+    }
 }
 
 // JPEG marker generation.
@@ -342,12 +375,14 @@ void jpeg_encoder::emit_byte(uint8 i)
 
 void jpeg_encoder::emit_word(uint i)
 {
-    emit_byte(uint8(i >> 8)); emit_byte(uint8(i & 0xFF));
+    emit_byte(uint8(i >> 8));
+    emit_byte(uint8(i & 0xFF));
 }
 
 void jpeg_encoder::emit_marker(int marker)
 {
-    emit_byte(uint8(0xFF)); emit_byte(uint8(marker));
+    emit_byte(uint8(0xFF));
+    emit_byte(uint8(marker));
 }
 
 // Emit JFIF marker
@@ -373,8 +408,9 @@ void jpeg_encoder::emit_dqt()
         emit_marker(M_DQT);
         emit_word(64 + 1 + 2);
         emit_byte(static_cast<uint8>(i));
-        for (int j = 0; j < 64; j++)
+        for (int j = 0; j < 64; j++) {
             emit_byte(static_cast<uint8>(m_huff[i].m_quantization_table[j]));
+        }
     }
 }
 
@@ -400,17 +436,20 @@ void jpeg_encoder::emit_dht(uint8 *bits, uint8 *val, int index, bool ac_flag)
     emit_marker(M_DHT);
 
     int length = 0;
-    for (int i = 1; i <= 16; i++)
+    for (int i = 1; i <= 16; i++) {
         length += bits[i];
+    }
 
     emit_word(length + 2 + 1 + 16);
     emit_byte(static_cast<uint8>(index + (ac_flag << 4)));
 
-    for (int i = 1; i <= 16; i++)
+    for (int i = 1; i <= 16; i++) {
         emit_byte(bits[i]);
+    }
 
-    for (int i = 0; i < length; i++)
+    for (int i = 0; i < length; i++) {
         emit_byte(val[i]);
+    }
 }
 
 // Emit all Huffman tables.
@@ -432,10 +471,11 @@ void jpeg_encoder::emit_sos()
     emit_byte(m_num_components);
     for (int i = 0; i < m_num_components; i++) {
         emit_byte(static_cast<uint8>(i + 1));
-        if (i == 0)
+        if (i == 0) {
             emit_byte((0 << 4) + 0);
-        else
+        } else {
             emit_byte((1 << 4) + 1);
+        }
     }
     emit_byte(0);     /* spectral selection */
     emit_byte(63);
@@ -463,16 +503,20 @@ void huffman_table::compute()
 
     int p = 0;
     for (char l = 1; l <= 16; l++)
-        for (int i = 1; i <= m_bits[l]; i++)
+        for (int i = 1; i <= m_bits[l]; i++) {
             huff_size[p++] = l;
+        }
 
     huff_size[p] = 0; last_p = p; // write sentinel
 
-    code = 0; si = huff_size[0]; p = 0;
+    code = 0;
+    si = huff_size[0];
+    p = 0;
 
     while (huff_size[p]) {
-        while (huff_size[p] == si)
+        while (huff_size[p] == si) {
             huff_code[p++] = code++;
+        }
         code <<= 1;
         si++;
     }
@@ -489,12 +533,14 @@ void huffman_table::compute()
 void jpeg_encoder::compute_quant_table(int32 *pDst, int16 *pSrc)
 {
     float q;
-    if (m_params.m_quality < 50)
+    if (m_params.m_quality < 50) {
         q = 5000.0 / m_params.m_quality;
-    else
+    } else {
         q = 200.0 - m_params.m_quality * 2.0;
+    }
     for (int i = 0; i < 64; i++) {
-        int32 j = pSrc[i]; j = (j * q + 50L) / 100L;
+        int32 j = pSrc[i];
+        j = (j * q + 50L) / 100L;
         pDst[i] = JPGE_MIN(JPGE_MAX(j, 1), 1024/3);
     }
     // DC quantized worse than 8 makes overall quality fall off the cliff
@@ -505,8 +551,11 @@ void jpeg_encoder::compute_quant_table(int32 *pDst, int16 *pSrc)
 
 void jpeg_encoder::reset_last_dc()
 {
-    m_bit_buffer = 0; m_bits_in = 0;
-    m_comp[0].m_last_dc_val=0; m_comp[1].m_last_dc_val=0; m_comp[2].m_last_dc_val=0;
+    m_bit_buffer = 0;
+    m_bits_in = 0;
+    m_comp[0].m_last_dc_val=0;
+    m_comp[1].m_last_dc_val=0;
+    m_comp[2].m_last_dc_val=0;
 }
 
 void jpeg_encoder::compute_huffman_tables()
@@ -562,7 +611,9 @@ bool jpeg_encoder::jpg_open(int p_x_res, int p_y_res)
     m_image[2].m_x = m_image[1].m_x = m_image[0].m_x = (m_x + m_mcu_w - 1) & (~(m_mcu_w - 1));
     m_image[2].m_y = m_image[1].m_y = m_image[0].m_y = (m_y + m_mcu_h - 1) & (~(m_mcu_h - 1));
 
-    for(int c=0; c < m_num_components; c++) m_image[c].init();
+    for(int c=0; c < m_num_components; c++) {
+        m_image[c].init();
+    }
 
     clear_obj(m_huff);
     compute_quant_table(m_huff[0].m_quantization_table, s_std_lum_quant);
@@ -575,7 +626,8 @@ bool jpeg_encoder::jpg_open(int p_x_res, int p_y_res)
     return m_all_stream_writes_succeeded;
 }
 
-void image::init() {
+void image::init()
+{
     m_pixels = static_cast<float *>(jpge_malloc(m_x * sizeof(float) * m_y));
     m_dctqs = static_cast<dctq_t *>(jpge_malloc(m_x * sizeof(dctq_t) * m_y));
 }
@@ -620,7 +672,8 @@ inline dct_t image::blend_quad(int x, int y, image &luma)
            + get_px(x+1,y+1)*d) / (a+b+c+d);
 }
 
-inline static dctq_t round_to_zero(const dct_t j, const int32 quant) {
+inline static dctq_t round_to_zero(const dct_t j, const int32 quant)
+{
     if (j < 0) {
         dctq_t jtmp = -j + (quant >> 1);
         return (jtmp < quant) ? 0 : static_cast<dctq_t>(-(jtmp / quant));
@@ -640,24 +693,32 @@ void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant
 
 void jpeg_encoder::flush_output_buffer()
 {
-    if (m_out_buf_left != JPGE_OUT_BUF_SIZE)
+    if (m_out_buf_left != JPGE_OUT_BUF_SIZE) {
         m_all_stream_writes_succeeded = m_all_stream_writes_succeeded && m_pStream->put_buf(m_out_buf, JPGE_OUT_BUF_SIZE - m_out_buf_left);
+    }
     m_pOut_buf = m_out_buf;
     m_out_buf_left = JPGE_OUT_BUF_SIZE;
 }
 
-inline static uint bit_count(int temp1) {
-    if (temp1 < 0) temp1 = -temp1;
+inline static uint bit_count(int temp1)
+{
+    if (temp1 < 0) {
+        temp1 = -temp1;
+    }
 
     uint nbits = 0;
     while (temp1) {
-        nbits++; temp1 >>= 1;
+        nbits++;
+        temp1 >>= 1;
     }
     return nbits;
 }
 
-void jpeg_encoder::put_signed_int_bits(int num, uint len) {
-    if (num < 0) num--;
+void jpeg_encoder::put_signed_int_bits(int num, uint len)
+{
+    if (num < 0) {
+        num--;
+    }
     put_bits(num & ((1 << len) - 1), len);
 }
 
@@ -668,7 +729,9 @@ void jpeg_encoder::put_bits(uint bits, uint len)
         uint8 c;
 #define JPGE_PUT_BYTE(c) { *m_pOut_buf++ = (c); if (--m_out_buf_left == 0) flush_output_buffer(); }
         JPGE_PUT_BYTE(c = (uint8)((m_bit_buffer >> 16) & 0xFF));
-        if (c == 0xFF) JPGE_PUT_BYTE(0);
+        if (c == 0xFF) {
+            JPGE_PUT_BYTE(0);
+        }
         m_bit_buffer <<= 8;
         m_bits_in -= 8;
     }
@@ -691,9 +754,9 @@ void jpeg_encoder::code_block(dctq_t *src, huffman_dcac *huff, component *comp, 
     int run_len = 0;
     for (int i = 1; i < 64; i++) {
         const dctq_t ac_val = src[i];
-        if (ac_val == 0)
+        if (ac_val == 0) {
             run_len++;
-        else {
+        } else {
             while (run_len >= 16) {
                 if (write) {
                     put_bits(huff->ac.m_codes[0xF0], huff->ac.m_code_sizes[0xF0]);
@@ -782,7 +845,9 @@ bool jpeg_encoder::compress_image()
 
     emit_start_markers();
     for (int y = 0; y < m_y; y+= m_mcu_h) {
-        if (!m_all_stream_writes_succeeded) return false;
+        if (!m_all_stream_writes_succeeded) {
+            return false;
+        }
         code_mcu_row(y, true);
     }
     return emit_end_markers();
@@ -790,11 +855,11 @@ bool jpeg_encoder::compress_image()
 
 void jpeg_encoder::load_mcu_Y(const uint8 *pSrc, int width, int bpp, int y)
 {
-    if (bpp == 4)
+    if (bpp == 4) {
         RGB_to_Y(m_image[0], reinterpret_cast<const rgba *>(pSrc), width, y);
-    else if (bpp == 3)
+    } else if (bpp == 3) {
         RGB_to_Y(m_image[0], reinterpret_cast<const rgb *>(pSrc), width, y);
-    else
+    } else
         for(int x=0; x < width; x++) {
             m_image[0].set_px(pSrc[x]-128.0, x, y);
         }
@@ -808,12 +873,13 @@ void jpeg_encoder::load_mcu_Y(const uint8 *pSrc, int width, int bpp, int y)
 
 void jpeg_encoder::load_mcu_YCC(const uint8 *pSrc, int width, int bpp, int y)
 {
-    if (bpp == 4)
+    if (bpp == 4) {
         RGB_to_YCC(m_image, reinterpret_cast<const rgba *>(pSrc), width, y);
-    else if (bpp == 3)
+    } else if (bpp == 3) {
         RGB_to_YCC(m_image, reinterpret_cast<const rgb *>(pSrc), width, y);
-    else
+    } else {
         Y_to_YCC(m_image, pSrc, width, y);
+    }
 
     // Possibly duplicate pixels at end of scanline if not a multiple of 8 or 16
     for(int c=0; c < m_num_components; c++) {
@@ -843,7 +909,9 @@ jpeg_encoder::~jpeg_encoder()
 bool jpeg_encoder::init(output_stream *pStream, int width, int height, const params &comp_params)
 {
     deinit();
-    if (!pStream || width < 1 || height < 1 || !comp_params.check()) return false;
+    if (!pStream || width < 1 || height < 1 || !comp_params.check()) {
+        return false;
+    }
     m_pStream = pStream;
     m_params = comp_params;
     return jpg_open(width, height);
@@ -851,13 +919,17 @@ bool jpeg_encoder::init(output_stream *pStream, int width, int height, const par
 
 void jpeg_encoder::deinit()
 {
-    for(int c=0; c < m_num_components; c++) m_image[c].deinit();
+    for(int c=0; c < m_num_components; c++) {
+        m_image[c].deinit();
+    }
     clear();
 }
 
 bool jpeg_encoder::read_image(const uint8 *image_data, int width, int height, int bpp)
 {
-    if (bpp != 1 && bpp != 3 && bpp != 4) return false;
+    if (bpp != 1 && bpp != 3 && bpp != 4) {
+        return false;
+    }
 
     for (int y = 0; y < height; y++) {
         if (m_num_components == 1) {
@@ -888,8 +960,11 @@ bool jpeg_encoder::read_image(const uint8 *image_data, int width, int height, in
             for(int y=0; y < m_image[c].m_y; y++) {
                 for(int x=0; x < m_image[c].m_x; x++) {
                     float px = m_image[c].get_px(x,y);
-                    if (px <= -128.f) px -= m_huff[0].m_quantization_table[0];
-                    else if (px >= 128.f) px += m_huff[0].m_quantization_table[0];
+                    if (px <= -128.f) {
+                        px -= m_huff[0].m_quantization_table[0];
+                    } else if (px >= 128.f) {
+                        px += m_huff[0].m_quantization_table[0];
+                    }
                     m_image[c].set_px(px, x, y);
                 }
             }
@@ -903,7 +978,8 @@ bool jpeg_encoder::read_image(const uint8 *image_data, int width, int height, in
 // Higher level wrappers/examples (optional).
 #include <stdio.h>
 
-class cfile_stream : public output_stream {
+class cfile_stream : public output_stream
+{
     cfile_stream(const cfile_stream &);
     cfile_stream &operator= (const cfile_stream &);
 
@@ -913,18 +989,21 @@ class cfile_stream : public output_stream {
 public:
     cfile_stream() : m_pFile(NULL), m_bStatus(false) { }
 
-    virtual ~cfile_stream() {
+    virtual ~cfile_stream()
+    {
         close();
     }
 
-    bool open(const char *pFilename) {
+    bool open(const char *pFilename)
+    {
         close();
         m_pFile = fopen(pFilename, "wb");
         m_bStatus = (m_pFile != NULL);
         return m_bStatus;
     }
 
-    bool close() {
+    bool close()
+    {
         if (m_pFile) {
             if (fclose(m_pFile) == EOF) {
                 m_bStatus = false;
@@ -934,12 +1013,14 @@ public:
         return m_bStatus;
     }
 
-    virtual bool put_buf(const void *pBuf, int len) {
+    virtual bool put_buf(const void *pBuf, int len)
+    {
         m_bStatus = m_bStatus && (fwrite(pBuf, len, 1, m_pFile) == 1);
         return m_bStatus;
     }
 
-    long get_size() const {
+    long get_size() const
+    {
         return m_pFile ? ftell(m_pFile) : 0;
     }
 };
@@ -948,8 +1029,9 @@ public:
 bool compress_image_to_jpeg_file(const char *pFilename, int width, int height, int num_channels, const uint8 *pImage_data, const params &comp_params)
 {
     cfile_stream dst_stream;
-    if (!dst_stream.open(pFilename))
+    if (!dst_stream.open(pFilename)) {
         return false;
+    }
 
     compress_image_to_stream(dst_stream, width, height, num_channels, pImage_data, comp_params);
 
@@ -959,20 +1041,24 @@ bool compress_image_to_jpeg_file(const char *pFilename, int width, int height, i
 bool compress_image_to_stream(output_stream &dst_stream, int width, int height, int num_channels, const uint8 *pImage_data, const params &comp_params)
 {
     jpge::jpeg_encoder encoder;
-    if (!encoder.init(&dst_stream, width, height, comp_params))
+    if (!encoder.init(&dst_stream, width, height, comp_params)) {
         return false;
+    }
 
-    if (!encoder.read_image(pImage_data, width, height, num_channels))
+    if (!encoder.read_image(pImage_data, width, height, num_channels)) {
         return false;
+    }
 
-    if (!encoder.compress_image())
+    if (!encoder.compress_image()) {
         return false;
+    }
 
     encoder.deinit();
     return true;
 }
 
-class memory_stream : public output_stream {
+class memory_stream : public output_stream
+{
     memory_stream(const memory_stream &);
     memory_stream &operator= (const memory_stream &);
 
@@ -984,24 +1070,28 @@ public:
 
     virtual ~memory_stream() { }
 
-    virtual bool put_buf(const void *pBuf, int len) {
+    virtual bool put_buf(const void *pBuf, int len)
+    {
         uint buf_remaining = m_buf_size - m_buf_ofs;
-        if ((uint)len > buf_remaining)
+        if ((uint)len > buf_remaining) {
             return false;
+        }
         memcpy(m_pBuf + m_buf_ofs, pBuf, len);
         m_buf_ofs += len;
         return true;
     }
 
-    uint get_size() const {
+    uint get_size() const
+    {
         return m_buf_ofs;
     }
 };
 
 bool compress_image_to_jpeg_file_in_memory(void *pDstBuf, int &buf_size, int width, int height, int num_channels, const uint8 *pImage_data, const params &comp_params)
 {
-    if ((!pDstBuf) || (!buf_size))
+    if ((!pDstBuf) || (!buf_size)) {
         return false;
+    }
 
     memory_stream dst_stream(pDstBuf, buf_size);
 

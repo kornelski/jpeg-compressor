@@ -30,9 +30,14 @@ enum subsampling_t { Y_ONLY = 0, H1V1 = 1, H2V1 = 2, H2V2 = 3 };
 struct params {
     inline params() : m_quality(85), m_subsampling(H2V2), m_no_chroma_discrim_flag(false) { }
 
-    inline bool check() const {
-        if ((m_quality < 1) || (m_quality > 100)) return false;
-        if ((uint)m_subsampling > (uint)H2V2) return false;
+    inline bool check() const
+    {
+        if ((m_quality < 1) || (m_quality > 100)) {
+            return false;
+        }
+        if ((uint)m_subsampling > (uint)H2V2) {
+            return false;
+        }
         return true;
     }
 

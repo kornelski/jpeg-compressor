@@ -82,7 +82,9 @@ static void log_printf(const char *pMsg, ...)
 static long get_file_size(const char *pFilename)
 {
     FILE *pFile = fopen(pFilename, "rb");
-    if (!pFile) return 0;
+    if (!pFile) {
+        return 0;
+    }
     fseek(pFile, 0, SEEK_END);
     long file_size = ftell(pFile);
     fclose(pFile);
@@ -90,7 +92,8 @@ static long get_file_size(const char *pFilename)
 }
 
 struct image_compare_results {
-    image_compare_results() {
+    image_compare_results()
+    {
         memset(this, 0, sizeof(*this));
     }
 
@@ -134,10 +137,12 @@ static void image_compare(image_compare_results &results, int width, int height,
     results.max_err = 0;
     double sum = 0.0f, sum2 = 0.0f;
     for (uint i = 0; i < 256; i++) {
-        if (!hist[i])
+        if (!hist[i]) {
             continue;
-        if (i > results.max_err)
+        }
+        if (i > results.max_err) {
             results.max_err = i;
+        }
         double x = i * hist[i];
         sum += x;
         sum2 += i * x;
@@ -151,10 +156,11 @@ static void image_compare(image_compare_results &results, int width, int height,
 
     results.root_mean_squared = sqrt(results.mean_squared);
 
-    if (!results.root_mean_squared)
+    if (!results.root_mean_squared) {
         results.peak_snr = 1e+10f;
-    else
+    } else {
         results.peak_snr = log10(255.0f / results.root_mean_squared) * 20.0f;
+    }
 }
 
 // Simple exhaustive test. Tries compressing/decompressing image using all supported quality, subsampling, and Huffman optimization settings.
@@ -174,7 +180,9 @@ static int exhausive_compression_test(const char *pSrc_filename, bool use_jpgd)
     log_printf("Source file: \"%s\" Image resolution: %ix%i Actual comps: %i\n", pSrc_filename, width, height, actual_comps);
 
     int orig_buf_size = width * height * 3; // allocate a buffer that's hopefully big enough (this is way overkill for jpeg)
-    if (orig_buf_size < 1024) orig_buf_size = 1024;
+    if (orig_buf_size < 1024) {
+        orig_buf_size = 1024;
+    }
     void *pBuf = malloc(orig_buf_size);
 
     uint8 *pUncomp_image_data = NULL;
@@ -280,21 +288,21 @@ int main(int arg_c, char *ppArgs[])
         case 'o': // dropped option
             break;
         case 'l':
-            if (strcasecmp(&ppArgs[arg_index][1], "luma") == 0)
+            if (strcasecmp(&ppArgs[arg_index][1], "luma") == 0) {
                 subsampling = jpge::Y_ONLY;
-            else {
+            } else {
                 log_printf("Unrecognized option: %s\n", ppArgs[arg_index]);
                 return EXIT_FAILURE;
             }
             break;
         case 'h':
-            if (strcasecmp(&ppArgs[arg_index][1], "h1v1") == 0)
+            if (strcasecmp(&ppArgs[arg_index][1], "h1v1") == 0) {
                 subsampling = jpge::H1V1;
-            else if (strcasecmp(&ppArgs[arg_index][1], "h2v1") == 0)
+            } else if (strcasecmp(&ppArgs[arg_index][1], "h2v1") == 0) {
                 subsampling = jpge::H2V1;
-            else if (strcasecmp(&ppArgs[arg_index][1], "h2v2") == 0)
+            } else if (strcasecmp(&ppArgs[arg_index][1], "h2v2") == 0) {
                 subsampling = jpge::H2V2;
-            else {
+            } else {
                 log_printf("Unrecognized subsampling: %s\n", ppArgs[arg_index]);
                 return EXIT_FAILURE;
             }
@@ -354,7 +362,9 @@ int main(int arg_c, char *ppArgs[])
     // Now create the JPEG file.
     if (test_memory_compression) {
         int buf_size = width * height * 3; // allocate a buffer that's hopefully big enough (this is way overkill for jpeg)
-        if (buf_size < 1024) buf_size = 1024;
+        if (buf_size < 1024) {
+            buf_size = 1024;
+        }
         void *pBuf = malloc(buf_size);
 
         if (!jpge::compress_image_to_jpeg_file_in_memory(pBuf, buf_size, width, height, req_comps, pImage_data, params)) {
@@ -393,10 +403,11 @@ int main(int arg_c, char *ppArgs[])
     int uncomp_width = 0, uncomp_height = 0, uncomp_actual_comps = 0, uncomp_req_comps = 3;
 
     uint8 *pUncomp_image_data;
-    if (use_jpgd)
+    if (use_jpgd) {
         pUncomp_image_data = jpgd::decompress_jpeg_image_from_file(pDst_filename, &uncomp_width, &uncomp_height, &uncomp_actual_comps, uncomp_req_comps);
-    else
+    } else {
         pUncomp_image_data = stbi_load(pDst_filename, &uncomp_width, &uncomp_height, &uncomp_actual_comps, uncomp_req_comps);
+    }
 
     if (!pUncomp_image_data) {
         log_printf("Failed loading compressed image file \"%s\"!\n", pDst_filename);
