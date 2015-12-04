@@ -34,7 +34,7 @@ ImageMagick = 7721B (left), this encoder = 7349B (right)
 
 ![ImageMagick](examples/compiling.png-11-im.jpg) ![This encoder](examples/compiling.png-8-wq.jpg)
 
-Deringing is implemented by overflowing white color (intensity used is 272 instead of 255). This way distortions are introduced out of visible range.
+Deringing is implemented by overshooting the white color ([technique described here in detail](https://pornel.net/deringing)). This way distortions are introduced out of visible range.
 
 #### Subsampling
 
@@ -44,7 +44,7 @@ Original (left), ImageMagick = 7277B (middle), this encoder = 7173B (right)
 
 ![Original](examples/ship.png)→![ImageMagick](examples/ship.png-36-im.jpg) ![This encoder](examples/ship.png-30-wq.jpg)
 
-This is done by weighing chroma by luma level. Needs further improvements to correct overall luminance.
+This is done by weighing chroma by luma level. It can be improved further by [subsampling with gamma correction](https://github.com/mozilla/mozjpeg/issues/193) and with luma corrections for out-of-range values produced by changes in chroma.
 
 #### Low DC quantization
 
