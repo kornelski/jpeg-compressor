@@ -124,6 +124,7 @@ public:
     int m_x, m_y;
 
     float get_px(int x, int y);
+    float get_upscaled_px(int x, int y);
     void set_px(float px, int x, int y);
 
     void load_block(dct_t *, int x, int y);

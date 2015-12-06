@@ -79,6 +79,17 @@ static void Y_to_YCC(image *img, const uint8 *pSrc, int width, int y)
     }
 }
 
+inline float image::get_upscaled_px(int x, int y)
+{
+    int yprev = (y > 1 ? y - 1 : 0)/2;
+    int xprev = (x > 1 ? x - 1 : 0)/2;
+    return
+       (m_pixels[yprev*m_x + xprev] + m_pixels[yprev*m_x + (x+0)/2] + m_pixels[yprev*m_x + (x+1)/2] +
+        m_pixels[(y+0)/2*m_x + xprev] + m_pixels[(y+0)/2*m_x + (x+0)/2] + m_pixels[(y+0)/2*m_x + (x+1)/2] +
+        m_pixels[(y+1)/2*m_x + xprev] + m_pixels[(y+1)/2*m_x + (x+0)/2] + m_pixels[(y+1)/2*m_x + (x+1)/2]) / 9.0;
+
+}
+
 inline float image::get_px(int x, int y)
 {
     return m_pixels[y*m_x + x];
@@ -928,13 +939,13 @@ template<class T> static void rewrite_luma_line(image *img, const T *src, int wi
     for (int x = 0; x < width; x++) {
         const int r = src[x].r, g = src[x].g, b = src[x].b;
 
-        const float cb = img[1].get_px(x/2, y/2);
-        const float cr = img[2].get_px(x/2, y/2);
+        const float cb = img[1].get_upscaled_px(x, y);
+        const float cr = img[2].get_upscaled_px(x, y);
 
-        double luma = 0.2126 * cr + 0.1183 * cb
-               + sqrt(0.2126 * (r*r - cb*cb - cr*cb)
-                    + 0.7152 * (g*g - cr*cr)
-                    + 0.0722 * (b*b - cr*cb));
+         double luma = 0.2126 * cr + 0.1183 * cb
+             + sqrt(0.2126 * (r*r - cb*cb - cr*cb)
+                  + 0.7152 * (g*g - cr*cr)
+                  + 0.0722 * (b*b - cr*cb));
 
         luma -= 128.0;
         if (luma < -128) luma = -128;
