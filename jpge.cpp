@@ -948,8 +948,8 @@ template<class T> static void rewrite_luma_line(image *img, const T *src, int wi
                   + 0.0722 * (b*b - cr*cb));
 
         luma -= 128.0;
-        if (luma < -128) luma = -128;
-        if (luma > 128) luma = 128;
+        if (luma < -140) luma = -140;
+        if (luma > 140) luma = 140;
 
         img[0].set_px(luma, x, y);
     }
