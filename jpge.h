@@ -1,6 +1,21 @@
-// jpge.h - C++ class for JPEG compression.
-// Public domain, Rich Geldreich <richgel99@gmail.com>
-// Alex Evans: Added RGBA support, linear memory allocator.
+/**
+ * © 2013, 2015 Kornel Lesiński. All rights reserved.
+ * Based on code by Rich Geldreich.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #ifndef JPEG_ENCODER_H
 #define JPEG_ENCODER_H
 
@@ -176,6 +191,8 @@ private:
     int m_mcu_w, m_mcu_h;
     int m_x, m_y;
     image m_image[3];
+
+    void rewrite_luma(const uint8 *image_data, int width, int height, int bpp);
 
     void emit_byte(uint8 i);
     void emit_word(uint i);
