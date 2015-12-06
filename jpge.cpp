@@ -22,6 +22,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 
 #define JPGE_MAX(a,b) (((a)>(b))?(a):(b))
 #define JPGE_MIN(a,b) (((a)<(b))?(a):(b))
@@ -921,6 +922,42 @@ void jpeg_encoder::deinit()
     clear();
 }
 
+
+template<class T> static void rewrite_luma_line(image *img, const T *src, int width, int y)
+{
+    for (int x = 0; x < width; x++) {
+        const int r = src[x].r, g = src[x].g, b = src[x].b;
+
+        const float cb = img[1].get_px(x/2, y/2);
+        const float cr = img[2].get_px(x/2, y/2);
+
+        double luma = 0.2126 * cr + 0.1183 * cb
+               + sqrt(0.2126 * (r*r - cb*cb - cr*cb)
+                    + 0.7152 * (g*g - cr*cr)
+                    + 0.0722 * (b*b - cr*cb));
+
+        luma -= 128.0;
+        if (luma < -128) luma = -128;
+        if (luma > 128) luma = 128;
+
+        img[0].set_px(luma, x, y);
+    }
+}
+
+void jpeg_encoder::rewrite_luma(const uint8 *image_data, int width, int height, int bpp) {
+    if (m_num_components == 1 || m_comp[0].m_h_samp != 2 || m_comp[0].m_v_samp != 2) return;
+
+
+    for (int y = 0; y < height; y++) {
+        const uint8 *pSrc = (image_data + width * y * bpp);
+        if (bpp == 4) {
+            rewrite_luma_line(m_image, reinterpret_cast<const rgba *>(pSrc), width, y);
+        } else if (bpp == 3) {
+            rewrite_luma_line(m_image, reinterpret_cast<const rgb *>(pSrc), width, y);
+        }
+    }
+}
+
 bool jpeg_encoder::read_image(const uint8 *image_data, int width, int height, int bpp)
 {
     if (bpp != 1 && bpp != 3 && bpp != 4) {
@@ -948,6 +985,8 @@ bool jpeg_encoder::read_image(const uint8 *image_data, int width, int height, in
             m_image[c].subsample(m_image[0], m_comp[0].m_v_samp);
         }
     }
+
+    rewrite_luma(image_data, width, height, bpp);
 
     // overflow white and black, making distortions overflow as well,
     // so distortions (ringing) will be clamped by the decoder
