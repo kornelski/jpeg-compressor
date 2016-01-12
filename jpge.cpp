@@ -837,7 +837,7 @@ bool jpeg_encoder::emit_end_markers()
 bool jpeg_encoder::compress_image()
 {
     for(int c=0; c < m_num_components; c++) {
-    	#pragma omp parallel for collapse(2) schedule(static)
+        #pragma omp parallel for collapse(2) schedule(static)
         for (int y = 0; y < m_image[c].m_y; y+= 8) {
             for (int x = 0; x < m_image[c].m_x; x += 8) {
                 dct_t sample[64];
@@ -977,7 +977,7 @@ bool jpeg_encoder::read_image(const uint8 *image_data, int width, int height, in
         return false;
     }
 
-	#pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static)
     for (int y = 0; y < height; y++) {
         if (m_num_components == 1) {
             load_mcu_Y(image_data + width * y * bpp, width, bpp, y);
