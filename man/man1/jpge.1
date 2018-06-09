@@ -1,0 +1,63 @@
+.TH JPGE 1 "30 Jan 2016"
+
+.SH NAME
+jpge \- Research JPEG encoder
+
+.SH SYNOPSIS
+.B jpge
+[
+.B options
+]
+.B <source_file> <dest_file> <quality_factor>
+
+.SH DESCRIPTION
+.I jpge
+jpge/jpgd example app
+Not enough parameters (expected source file, dest file, quality factor to follow options)
+
+.SH OPTIONS
+.PP
+Required parameters (must follow options):
+.PP
+.B
+source_file:
+Source image file, in any format stb_image.c supports.
+.PP
+.B dest_file:
+Destination JPEG file.
+.PP
+.B quality_factor:
+1-100, higher=better (only needed in compression mode)
+.PP
+Default mode compresses source_file to dest_file. Alternate modes:
+.PP
+\fB-x\fP: Exhaustive compression test (only needs source_file)
+.PP
+Options supported in all modes:
+.PP
+\fB-glogfilename.txt\fP: Append output to log file
+.PP
+Options supported in compression mode (the default):
+.PP
+\fB-luma\fP: Output Y-only image
+.PP
+\fB-h1v1\fP, \fB-h2v1\fP, \fB-h2v2\fP: Chroma subsampling (default is either Y-only or H2V2)
+.PP
+\fB-m\fP: Test mem to mem compression (instead of mem to file)
+.PP
+\fB-s\fP: Use stb_image.c to decompress JPEG image, instead of jpgd.cpp
+.PP
+
+.SH EXAMPLE
+Test compression:
+.PP
+.B jpge orig.png comp.jpg 90
+.PP
+Test decompression:
+.PP
+.B jpge -d comp.jpg uncomp.tga
+.PP
+Exhaustively test compressor:
+.PP
+.B jpge -x orig.png
+
